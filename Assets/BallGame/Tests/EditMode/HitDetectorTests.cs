@@ -346,5 +346,15 @@ namespace BallGame.Tests
             Assert.That(result.LargestBlobRejectReason, Is.EqualTo(string.Empty));
             Assert.That(detector.Process(scene.EmptyFrame(), 1f).DescribeLargestBlob(), Is.EqualTo("塊なし"));
         }
+
+        [Test]
+        public void はっきり壁から離れた小さい塊は1フレームで採用する()
+        {
+            ushort[] frame = scene.EmptyFrame();
+            int area = scene.DrawDisc(frame, 200f, 120f, 2.3f, 120f);
+            Assert.That(area, Is.LessThan(24));
+
+            Assert.That(detector.Process(frame, 0f).Hits.Count, Is.EqualTo(1));
+        }
     }
 }

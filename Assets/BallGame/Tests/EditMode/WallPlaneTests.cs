@@ -132,5 +132,51 @@ namespace BallGame.Tests
             Assert.That(WallPlaneBuilder.Build(data.Baseline, data.Width, data.Height, data.Corners, DepthIntrinsics.ForResolution(data.Width, data.Height)).IsValid, Is.False);
             Assert.That(new HitDetector(new DetectionSettings()).Configure(data), Is.False);
         }
+
+        [Test]
+        public void 壁が少し曲がっていても場所ごとの向きで距離を測れる()
+        {
+            const int kinkRow = 120;
+            TestDepthScene scene = new TestDepthScene();
+            SimulatedDepthSource bent = new SimulatedDepthSource(MountOrientation.Side, 1, -0.65f, 760f) { AddNoise = false };
+            CalibrationData data = scene.CreateCalibration();
+            for (int y = kinkRow; y < scene.Height; y++)
+            {
+                ushort depth = (ushort)Mathf.RoundToInt(bent.GetWallDepthMm(y));
+                for (int x = 0; x < scene.Width; x++)
+                {
+                    data.Baseline[y * scene.Width + x] = depth;
+                }
+            }
+
+            HitDetector detector = new HitDetector(new DetectionSettings());
+            Assert.That(detector.Configure(data), Is.True);
+
+            foreach (int row in new[] { 140, 180, 215 })
+            {
+                int index = row * scene.Width + 160;
+                ushort ball = (ushort)Mathf.RoundToInt(bent.GetDepthAtWallDistance(row, 70f));
+                Assert.That(detector.GetDistanceFromWall(index, ball), Is.EqualTo(70f).Within(8f), "行 " + row);
+            }
+
+            foreach (int row in new[] { 30, 80 })
+            {
+                int index = row * scene.Width + 160;
+                ushort ball = (ushort)Mathf.RoundToInt(scene.Simulator.GetDepthAtWallDistance(row, 70f));
+                Assert.That(detector.GetDistanceFromWall(index, ball), Is.EqualTo(70f).Within(8f), "行 " + row);
+            }
+        }
+
+        [Test]
+        public void 場所ごとの向きは平らな壁なら全体の平面と同じ()
+        {
+            TestDepthScene scene = new TestDepthScene();
+            CalibrationData data = scene.CreateCalibration();
+            DepthIntrinsics intrinsics = DepthIntrinsics.ForResolution(data.Width, data.Height);
+            WallPlane plane = WallPlaneBuilder.Build(data.Baseline, data.Width, data.Height, data.Corners, intrinsics);
+            Vector3 local = LocalWallNormals.GetNormal(data.Baseline, data.Width, data.Height, 160, 120, LocalWallNormals.DefaultRadius, intrinsics, plane, 0.8f);
+
+            Assert.That(Vector3.Dot(local, plane.Normal), Is.GreaterThan(0.999f));
+        }
     }
 }

@@ -27,7 +27,6 @@ namespace BallGame
         private ushort[] baseline;
         private bool[] insideMask;
         private float[] normalDotRay;
-        private float[] baselineDistance;
         private float[] pixelNoiseDistance;
         private bool[] unstablePixel;
         private bool[] candidate;
@@ -106,7 +105,7 @@ namespace BallGame
             }
 
             insideMask = QuadMask.Build(data.Corners, width, height);
-            BuildDistanceTables(intrinsics);
+            normalDotRay = LocalWallNormals.Build(baseline, width, height, intrinsics, plane);
             BuildNoiseTables(data.BaselineNoise);
             isConfigured = true;
             return true;
@@ -169,7 +168,8 @@ namespace BallGame
         /// <returns>基準より壁から離れた距離（mm、カメラ側が正）</returns>
         public float GetDistanceFromWall(int index, ushort depthMm)
         {
-            return normalDotRay[index] * depthMm + plane.Offset - baselineDistance[index];
+            // 場所ごとの壁の向きを使い、基準からどれだけ壁の手前へ出たかを測る
+            return normalDotRay[index] * (depthMm - baseline[index]);
         }
 
         /// <summary>
@@ -187,8 +187,6 @@ namespace BallGame
             width = newWidth;
             height = newHeight;
             int count = width * height;
-            normalDotRay = new float[count];
-            baselineDistance = new float[count];
             pixelNoiseDistance = new float[count];
             unstablePixel = new bool[count];
             candidate = new bool[count];
@@ -196,19 +194,6 @@ namespace BallGame
             strength = new float[count];
             filtered = new bool[count];
             visited = new bool[count];
-        }
-
-        private void BuildDistanceTables(DepthIntrinsics intrinsics)
-        {
-            for (int y = 0; y < height; y++)
-            {
-                for (int x = 0; x < width; x++)
-                {
-                    int index = y * width + x;
-                    normalDotRay[index] = Vector3.Dot(plane.Normal, intrinsics.GetRay(x + 0.5f, y + 0.5f));
-                    baselineDistance[index] = normalDotRay[index] * baseline[index] + plane.Offset;
-                }
-            }
         }
 
         private void BuildNoiseTables(ushort[] noise)
@@ -523,7 +508,10 @@ namespace BallGame
                 return;
             }
 
-            bool accepted = blob.Area >= settings.InstantArea || track.ConsecutiveFrames >= settings.ConfirmFrames;
+            // 速いボールは壁の近くに1〜2フレームしかいないため、はっきり壁から離れた塊は小さくても1フレームで採用する
+            bool accepted = blob.Area >= settings.InstantArea
+                || blob.PeakStrength >= settings.InstantPeakStrength
+                || track.ConsecutiveFrames >= settings.ConfirmFrames;
             if (!accepted)
             {
                 return;

@@ -40,15 +40,21 @@ namespace BallGame
         private readonly DepthIntrinsics intrinsics = DepthIntrinsics.ForResolution(SimulatedWidth, SimulatedHeight);
         private readonly System.Random random;
         private MountOrientation mount;
+        private readonly float wallTilt;
+        private readonly float wallHeightMm;
 
         /// <summary>
         /// 模擬深度を作ります。
         /// </summary>
         /// <param name="mount">設置向き</param>
         /// <param name="seed">揺れの乱数の種</param>
-        public SimulatedDepthSource(MountOrientation mount, int seed = 12345)
+        /// <param name="tilt">壁の面の傾き（テストで壁の向きを変えるとき用）</param>
+        /// <param name="heightMm">壁の面の位置（mm）</param>
+        public SimulatedDepthSource(MountOrientation mount, int seed = 12345, float tilt = WallTilt, float heightMm = WallHeightMm)
         {
             this.mount = mount;
+            wallTilt = tilt;
+            wallHeightMm = heightMm;
             random = new System.Random(seed);
         }
 
@@ -142,8 +148,8 @@ namespace BallGame
         {
             float sensorRow = MountGeometry.IsNearAtImageBottom(mount) ? row : SimulatedHeight - 1 - row;
             float rayY = intrinsics.GetRay(0f, sensorRow + 0.5f).y;
-            float normalLength = Mathf.Sqrt(1f + WallTilt * WallTilt);
-            return (WallHeightMm - distanceMm * normalLength) / (rayY - WallTilt);
+            float normalLength = Mathf.Sqrt(1f + wallTilt * wallTilt);
+            return (wallHeightMm - distanceMm * normalLength) / (rayY - wallTilt);
         }
 
         /// <summary>

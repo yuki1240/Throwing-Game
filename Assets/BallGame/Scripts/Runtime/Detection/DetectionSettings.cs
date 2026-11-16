@@ -35,6 +35,9 @@ namespace BallGame
         /// <summary>深度 0 になった画素の強さ（しきい値の何倍とみなすか）。</summary>
         public float ZeroDepthStrength = 2f;
 
+        /// <summary>一番強い点がしきい値のこの倍率以上なら、小さい塊でも1フレームで採用する（速いボール用）。</summary>
+        public float InstantPeakStrength = 2f;
+
         /// <summary>小さい塊を採用するまでに続けて見えるフレーム数。</summary>
         public int ConfirmFrames = 2;
 
