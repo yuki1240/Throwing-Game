@@ -21,23 +21,28 @@ namespace BallGame
     }
 
     /// <summary>
-    /// クリスマスの場面の流れ（15回当てる → 完成を5秒 → カウントダウン3秒 → 次の場面）を管理します。
+    /// クリスマスの場面の流れ（10回当てる → 完成のきらきらを3秒 → カウントダウン10秒 → 次の場面）を管理します。
     /// 画面に依存しないので、テストで確かめられます。
     /// </summary>
     public sealed class ChristmasFlow
     {
-        /// <summary>ツリーが完成するまでに当てる回数。</summary>
-        public const int DefaultGoal = 15;
+        /// <summary>ツリーが完成するまでに当てる回数（最後の1回で星が付く）。</summary>
+        public const int DefaultGoal = 10;
 
-        /// <summary>「完成～！」を出しておく秒数。</summary>
-        public const float DefaultCelebrateSeconds = 5f;
+        /// <summary>「完成～！」ときらきらを出しておく秒数（このあとカウントダウン）。</summary>
+        public const float DefaultCelebrateSeconds = 3f;
 
-        /// <summary>カウントダウンの始まりの数。</summary>
-        public const int DefaultCountdownFrom = 3;
+        /// <summary>カウントダウンの始まりの数（秒）。</summary>
+        public const int DefaultCountdownFrom = 10;
+
+        /// <summary>当たりを数える間隔の下限（秒）。1秒に1個まで。</summary>
+        public const float DefaultMinHitIntervalSeconds = 1f;
 
         private readonly int goal;
         private readonly float celebrateSeconds;
         private readonly int countdownFrom;
+        private readonly float minHitIntervalSeconds;
+        private float lastCountedTime = float.NegativeInfinity;
         private ChristmasPhase phase = ChristmasPhase.Playing;
         private int hitCount;
         private float phaseElapsed;
@@ -48,8 +53,10 @@ namespace BallGame
         /// <param name="goal">完成までに当てる回数</param>
         /// <param name="celebrateSeconds">完成を出す秒数</param>
         /// <param name="countdownFrom">カウントダウンの始まりの数</param>
-        public ChristmasFlow(int goal = DefaultGoal, float celebrateSeconds = DefaultCelebrateSeconds, int countdownFrom = DefaultCountdownFrom)
+        /// <param name="minHitIntervalSeconds">当たりを数える間隔の下限（秒）</param>
+        public ChristmasFlow(int goal = DefaultGoal, float celebrateSeconds = DefaultCelebrateSeconds, int countdownFrom = DefaultCountdownFrom, float minHitIntervalSeconds = DefaultMinHitIntervalSeconds)
         {
+            this.minHitIntervalSeconds = Mathf.Max(0f, minHitIntervalSeconds);
             this.goal = Mathf.Max(1, goal);
             this.celebrateSeconds = Mathf.Max(0f, celebrateSeconds);
             this.countdownFrom = Mathf.Max(1, countdownFrom);
@@ -79,17 +86,26 @@ namespace BallGame
             get { return goal - hitCount; }
         }
 
-        /// <summary>
-        /// 当たったことを知らせます。飾り付け中だけ数えます。
-        /// </summary>
-        /// <returns>数えたとき true（新しい飾りを付ける）</returns>
-        public bool RegisterHit()
+        /// <summary>最後の1個（星）を付ける番か。</summary>
+        public bool IsNextFinal
         {
-            if (phase != ChristmasPhase.Playing)
+            get { return phase == ChristmasPhase.Playing && hitCount == goal - 1; }
+        }
+
+        /// <summary>
+        /// 当たったことを知らせます。飾り付け中で、前に数えてから1秒たっているときだけ数えます
+        /// （弾んだボールで何度も数えないため）。
+        /// </summary>
+        /// <param name="timeSeconds">今の時刻（秒）</param>
+        /// <returns>数えたとき true（新しい飾りを付ける）</returns>
+        public bool RegisterHit(float timeSeconds)
+        {
+            if (phase != ChristmasPhase.Playing || timeSeconds - lastCountedTime < minHitIntervalSeconds)
             {
                 return false;
             }
 
+            lastCountedTime = timeSeconds;
             hitCount++;
             if (hitCount >= goal)
             {

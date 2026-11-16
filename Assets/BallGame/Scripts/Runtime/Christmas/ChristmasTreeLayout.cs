@@ -21,8 +21,14 @@ namespace BallGame
         /// <summary>ツリーの葉の一番下の半分の幅。</summary>
         public const float BaseHalfWidth = 400f;
 
-        /// <summary>飾りを並べる段の高さ（上から）。段 n には n+1 個並ぶので合計15か所。</summary>
-        public static readonly float[] RowHeights = { 790f, 690f, 580f, 450f, 300f };
+        /// <summary>飾りを並べる段の高さ（上から）。</summary>
+        public static readonly float[] RowHeights = { 700f, 530f, 340f };
+
+        /// <summary>段ごとの飾りの数（上から 2・3・4 個で合計9か所。10個目はてっぺんの星）。</summary>
+        public static readonly int[] RowCounts = { 2, 3, 4 };
+
+        /// <summary>星を付けるてっぺんの位置。</summary>
+        public static readonly Vector2 StarPosition = new Vector2(CenterX, ApexY + 25f);
 
         /// <summary>
         /// 高さ y でのツリーの半分の幅を返します。
@@ -36,7 +42,7 @@ namespace BallGame
         }
 
         /// <summary>
-        /// 飾りを付ける位置を上の段から順に返します（1, 2, 3, 4, 5 個で合計15か所）。
+        /// 飾りを付ける位置を上の段から順に返します（2, 3, 4 個で合計9か所）。
         /// </summary>
         /// <returns>位置の一覧</returns>
         public static List<Vector2> GetOrnamentSlots()
@@ -44,7 +50,7 @@ namespace BallGame
             List<Vector2> slots = new List<Vector2>();
             for (int row = 0; row < RowHeights.Length; row++)
             {
-                AddRow(slots, RowHeights[row], row + 1);
+                AddRow(slots, RowHeights[row], RowCounts[row]);
             }
 
             return slots;

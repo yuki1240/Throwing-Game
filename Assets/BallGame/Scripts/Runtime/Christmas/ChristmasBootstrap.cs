@@ -7,8 +7,10 @@ using UnityEngine.UI;
 namespace BallGame
 {
     /// <summary>
-    /// Christmas シーンの起動用オブジェクト。ボールが壁に当たるたびにクリスマスツリーへ飾りを1つずつ付け、
-    /// 15回で「クリスマスツリーの完成～！」を5秒出し、カウントダウンのあと次の場面（草原）へ移ります。
+    /// Christmas シーンの起動用オブジェクト。ボールが壁に当たるたびにクリスマスツリーへ飾り
+    /// （いろいろな色のボールと赤い電球）を1つずつ付け、10回目にてっぺんの星が付いて完成します。
+    /// 完成したら「クリスマスツリーの完成～！」ときらきらを出し、10秒のカウントダウンのあと次の場面（草原）へ移ります。
+    /// 当たりは1秒に1個まで数えます。
     /// 遊ぶのは幼稚園の子どもなので、文字は大きく、ひらがなを多くしています。
     /// </summary>
     public sealed class ChristmasBootstrap : MonoBehaviour
@@ -37,6 +39,11 @@ namespace BallGame
         private static readonly Color StarBrightColor = new Color(1f, 0.9f, 0.25f, 1f);
         private static readonly Color GoldText = new Color(1f, 0.92f, 0.35f, 1f);
 
+        private static readonly Color BulbOffColor = new Color(0.45f, 0.08f, 0.1f, 1f);
+        private static readonly Color BulbOnColor = new Color(1f, 0.15f, 0.12f, 1f);
+
+        private readonly List<GameObject> bulbGlows = new List<GameObject>();
+        private readonly List<Image> bulbBodies = new List<Image>();
         private readonly System.Random random = new System.Random();
         private readonly ChristmasFlow flow = new ChristmasFlow();
         private CalibrationSession session;
@@ -85,6 +92,7 @@ namespace BallGame
             BuildTree(canvas.transform);
             ornamentLayer = CreateFullLayer(canvas.transform, "Ornaments");
             star = BuildStar(canvas.transform);
+            star.gameObject.SetActive(false);
             spawner = BuildEffectLayer(canvas.transform);
             BuildKidsTexts(canvas.transform);
             BuildOperatorOverlay(canvas.transform);
@@ -230,32 +238,109 @@ namespace BallGame
         {
             spawner.SpawnEffect(EffectKind.FlashParticles, wallUv);
             int ornamentIndex = flow.HitCount;
-            if (flow.RegisterHit())
+            bool isFinal = flow.IsNextFinal;
+            if (!flow.RegisterHit(Time.time))
+            {
+                return;
+            }
+
+            if (isFinal)
+            {
+                PlaceStar(wallUv);
+            }
+            else
             {
                 AddOrnament(ornamentIndex, wallUv);
             }
         }
 
+        /// <summary>
+        /// 何個目の飾りを赤い電球にするかを返します（3個に1個）。
+        /// </summary>
+        /// <param name="ornamentIndex">飾りの番号（0 始まり）</param>
+        /// <returns>赤い電球なら true</returns>
+        public static bool IsRedBulb(int ornamentIndex)
+        {
+            return ornamentIndex % 3 == 2;
+        }
+
         private void AddOrnament(int ornamentIndex, Vector2 wallUv)
         {
             Vector2 slot = slots[slotOrder[ornamentIndex % slotOrder.Length]];
-            Image ornament = PlaceImage(ornamentLayer, "Ornament " + (ornamentIndex + 1), EffectShape.Dot, slot, new Vector2(84f, 84f), OrnamentColors[random.Next(OrnamentColors.Length)]);
-            Image shine = PlaceImage(ornament.transform, "Shine", EffectShape.SoftCircle, Vector2.zero, new Vector2(34f, 34f), new Color(1f, 1f, 1f, 0.85f));
-            RectTransform shineRect = shine.rectTransform;
-            shineRect.anchorMin = new Vector2(0.5f, 0.5f);
-            shineRect.anchorMax = new Vector2(0.5f, 0.5f);
-            shineRect.anchoredPosition = new Vector2(-16f, 16f);
-            Vector2 from = new Vector2(wallUv.x * ornamentLayer.rect.width, wallUv.y * ornamentLayer.rect.height);
-            ornament.gameObject.AddComponent<OrnamentFlight>().Fly(from, slot);
+            Image ornament = IsRedBulb(ornamentIndex) ? CreateRedBulb(ornamentIndex, slot) : CreateBall(ornamentIndex, slot);
+            ornament.gameObject.AddComponent<OrnamentFlight>().Fly(ToLayer(wallUv), slot);
+        }
+
+        private Vector2 ToLayer(Vector2 wallUv)
+        {
+            return new Vector2(wallUv.x * ornamentLayer.rect.width, wallUv.y * ornamentLayer.rect.height);
+        }
+
+        private Image CreateBall(int ornamentIndex, Vector2 slot)
+        {
+            Image ball = PlaceImage(ornamentLayer, "Ball " + (ornamentIndex + 1), EffectShape.Dot, slot, new Vector2(84f, 84f), OrnamentColors[random.Next(OrnamentColors.Length)]);
+            AddCenteredChild(ball.transform, "Shine", EffectShape.SoftCircle, new Vector2(-16f, 16f), new Vector2(34f, 34f), new Color(1f, 1f, 1f, 0.85f));
+            return ball;
+        }
+
+        private Image CreateRedBulb(int ornamentIndex, Vector2 slot)
+        {
+            // 透明な入れ物の中に、光（ぴかぴか）・電球・口金を重ねる
+            // 電球は☆が付くまで消えたまま（暗い赤）。☆が付いたら LightUpBulbs で点ける
+            Image holder = PlaceImage(ornamentLayer, "RedBulb " + (ornamentIndex + 1), EffectShape.Dot, slot, new Vector2(70f, 96f), new Color(1f, 1f, 1f, 0f));
+            Image glow = AddCenteredChild(holder.transform, "Glow", EffectShape.SoftCircle, Vector2.zero, new Vector2(170f, 170f), new Color(1f, 0.25f, 0.2f, 0.9f));
+            glow.gameObject.AddComponent<Twinkle>().Setup(ornamentIndex * 1.3f, 5f);
+            glow.gameObject.SetActive(false);
+            bulbGlows.Add(glow.gameObject);
+            Image body = AddCenteredChild(holder.transform, "Bulb", EffectShape.Dot, new Vector2(0f, -6f), new Vector2(58f, 80f), BulbOffColor);
+            bulbBodies.Add(body);
+            AddCenteredChild(holder.transform, "Shine", EffectShape.SoftCircle, new Vector2(-10f, 6f), new Vector2(22f, 30f), new Color(1f, 0.85f, 0.85f, 0.9f));
+            Image cap = AddCenteredChild(holder.transform, "Cap", EffectShape.Bar, new Vector2(0f, 40f), new Vector2(30f, 20f), new Color(0.75f, 0.75f, 0.7f));
+            cap.sprite = null;
+            return holder;
+        }
+
+        private static Image AddCenteredChild(Transform parent, string name, EffectShape shape, Vector2 offset, Vector2 size, Color color)
+        {
+            Image child = PlaceImage(parent, name, shape, Vector2.zero, size, color);
+            RectTransform rect = child.rectTransform;
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = offset;
+            return child;
+        }
+
+        private void PlaceStar(Vector2 wallUv)
+        {
+            star.gameObject.SetActive(true);
+            star.gameObject.AddComponent<OrnamentFlight>().Fly(ToLayer(wallUv), ChristmasTreeLayout.StarPosition);
+            LightUpBulbs();
+        }
+
+        private void LightUpBulbs()
+        {
+            foreach (GameObject glow in bulbGlows)
+            {
+                glow.SetActive(true);
+            }
+
+            foreach (Image body in bulbBodies)
+            {
+                body.color = BulbOnColor;
+            }
         }
 
         private void AnimateCelebration()
         {
             bool celebrating = flow.Phase == ChristmasPhase.Celebrating || flow.Phase == ChristmasPhase.Countdown;
-            star.color = celebrating ? StarBrightColor : StarDimColor;
-            float pulse = celebrating ? 1f + 0.15f * Mathf.Sin(Time.time * 6f) : 1f;
-            star.rectTransform.localScale = Vector3.one * pulse;
-            if (flow.Phase == ChristmasPhase.Celebrating && Time.time >= nextBurstAt)
+            if (!celebrating)
+            {
+                return;
+            }
+
+            star.color = StarBrightColor;
+            star.transform.localRotation = Quaternion.Euler(0f, 0f, 8f * Mathf.Sin(Time.time * 3f));
+            if (Time.time >= nextBurstAt)
             {
                 nextBurstAt = Time.time + CelebrationBurstInterval;
                 SpawnCelebrationBurst();
@@ -264,8 +349,12 @@ namespace BallGame
 
         private void SpawnCelebrationBurst()
         {
-            Vector2 wallUv = new Vector2(0.2f + 0.6f * (float)random.NextDouble(), 0.3f + 0.6f * (float)random.NextDouble());
-            EffectKind kind = random.Next(2) == 0 ? EffectKind.FlashParticles : EffectKind.Petals;
+            // きらきら：ツリーのまわりに光の粒を出す
+            Vector2 canvasPoint = new Vector2(
+                ChristmasTreeLayout.CenterX + (float)(random.NextDouble() * 2.0 - 1.0) * 450f,
+                ChristmasTreeLayout.BaseY + (float)random.NextDouble() * (ChristmasTreeLayout.ApexY - ChristmasTreeLayout.BaseY + 100f));
+            Vector2 wallUv = new Vector2(canvasPoint.x / UiFactory.ReferenceResolution.x, canvasPoint.y / UiFactory.ReferenceResolution.y);
+            EffectKind kind = random.Next(3) == 0 ? EffectKind.Flash : EffectKind.FlashParticles;
             spawner.SpawnEffect(kind, wallUv);
         }
 
