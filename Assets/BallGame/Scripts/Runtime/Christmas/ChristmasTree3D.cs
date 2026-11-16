@@ -39,6 +39,9 @@ namespace BallGame
         private Vector3 towardCamera;
         private Vector3[] slotPositions;
         private float ornamentSize;
+        private float foliageBottom;
+        private float foliageTop;
+        private float coneBaseRadius;
         private float starSize;
         private Transform star;
         private Quaternion starBaseRotation;
@@ -115,8 +118,8 @@ namespace BallGame
             towardCamera = GetHorizontalDirection(treeBounds.center, roomCamera.transform.position);
             ornamentSize = treeBounds.size.y * 0.075f;
             starSize = treeBounds.size.y * 0.09f;
-            slotPositions = ComputeSlotPositions(tree);
             EnsureStarFitsOnScreen();
+            slotPositions = ComputeSlotPositions(tree);
         }
 
         private void EnsureStarFitsOnScreen()
@@ -206,21 +209,23 @@ namespace BallGame
 
         private Vector3[] ComputeSlotPositions(Transform tree)
         {
+            // カメラから見えるツリーの面に置く：画面上で決めた場所からカメラの光線を飛ばし、最初に当たった葉の上に付ける
             List<ChristmasTree3DLayout.Slot> slots = ChristmasTree3DLayout.GetSlots();
             Vector3[] positions = new Vector3[slots.Count];
             float height = treeBounds.size.y;
-            float foliageBottom = treeBounds.min.y + height * 0.15f;
-            float foliageTop = treeBounds.max.y - height * 0.08f;
-            float baseRadius = Mathf.Min(treeBounds.extents.x, treeBounds.extents.z) * 0.85f;
-            float outer = Mathf.Max(treeBounds.extents.x, treeBounds.extents.z) * 2f + 1f;
+            foliageBottom = treeBounds.min.y + height * 0.15f;
+            foliageTop = treeBounds.max.y - height * 0.08f;
+            coneBaseRadius = Mathf.Min(treeBounds.extents.x, treeBounds.extents.z) * 0.85f;
+            Vector3 right = viewCamera.transform.right;
+            right.y = 0f;
+            right = right.sqrMagnitude < 0.0001f ? Vector3.right : right.normalized;
             MeshCollider probe = AddProbeCollider(tree);
+            int visible = 0;
             for (int i = 0; i < slots.Count; i++)
             {
-                float y = Mathf.Lerp(foliageBottom, foliageTop, slots[i].Height01);
-                Vector3 axis = new Vector3(treeBounds.center.x, y, treeBounds.center.z);
-                Vector3 direction = Quaternion.AngleAxis(slots[i].AngleDegrees, Vector3.up) * towardCamera;
-                Vector3 onCone = axis + direction * ChristmasTree3DLayout.GetConeRadius(slots[i].Height01, baseRadius);
-                positions[i] = TryFindSurface(probe, axis, direction, outer, out Vector3 onSurface) ? onSurface : onCone;
+                positions[i] = FindVisiblePoint(probe, slots[i], right);
+                Vector3 view = viewCamera.WorldToViewportPoint(positions[i]);
+                visible += IsInsideScreen(view) ? 1 : 0;
             }
 
             if (probe != null)
@@ -228,7 +233,64 @@ namespace BallGame
                 Destroy(probe);
             }
 
+            Debug.Log("[Christmas] 飾りの場所 " + positions.Length + " か所のうち、画面に映るのは " + visible + " か所です。");
             return positions;
+        }
+
+        private static bool IsInsideScreen(Vector3 viewport)
+        {
+            return viewport.z > 0f && viewport.x > 0.02f && viewport.x < 0.98f && viewport.y > 0.02f && viewport.y < 0.98f;
+        }
+
+        private Vector3 FindVisiblePoint(MeshCollider probe, ChristmasTree3DLayout.Slot slot, Vector3 right)
+        {
+            float y = Mathf.Lerp(foliageBottom, foliageTop, slot.Height01);
+            Vector3 axis = new Vector3(treeBounds.center.x, y, treeBounds.center.z);
+            float radius = ChristmasTree3DLayout.GetConeRadius(slot.Height01, coneBaseRadius);
+            Vector3 centerView = viewCamera.WorldToViewportPoint(axis);
+            Vector3 edgeView = viewCamera.WorldToViewportPoint(axis + right * radius);
+            float halfWidth = Mathf.Abs(edgeView.x - centerView.x);
+            Vector2 target = new Vector2(centerView.x + slot.Lateral01 * halfWidth, centerView.y);
+            Ray ray = viewCamera.ViewportPointToRay(new Vector3(target.x, target.y, 0f));
+            float lift = ornamentSize * 0.3f;
+            if (probe != null && probe.Raycast(ray, out RaycastHit hit, 1000f))
+            {
+                return hit.point - ray.direction * lift;
+            }
+
+            if (TryMarchToCone(ray, out Vector3 onCone))
+            {
+                return onCone - ray.direction * lift;
+            }
+
+            // 見つからないときは、ツリーの真ん中のカメラ側に付ける
+            return axis + towardCamera * radius;
+        }
+
+        private bool TryMarchToCone(Ray ray, out Vector3 point)
+        {
+            // 光線を少しずつ進め、最初に円すいの中へ入った所を表面とみなす
+            float step = Mathf.Max(0.01f, ornamentSize * 0.1f);
+            float limit = Vector3.Distance(ray.origin, treeBounds.center) * 2f;
+            for (float distance = 0f; distance < limit; distance += step)
+            {
+                point = ray.GetPoint(distance);
+                float height01 = Mathf.InverseLerp(foliageBottom, foliageTop, point.y);
+                if (height01 <= 0f || height01 >= 1f)
+                {
+                    continue;
+                }
+
+                float dx = point.x - treeBounds.center.x;
+                float dz = point.z - treeBounds.center.z;
+                if (Mathf.Sqrt(dx * dx + dz * dz) <= ChristmasTree3DLayout.GetConeRadius(height01, coneBaseRadius))
+                {
+                    return true;
+                }
+            }
+
+            point = Vector3.zero;
+            return false;
         }
 
         private static MeshCollider AddProbeCollider(Transform tree)
@@ -267,25 +329,6 @@ namespace BallGame
             }
 
             return tree.GetComponentInChildren<MeshFilter>(true);
-        }
-
-        private bool TryFindSurface(MeshCollider probe, Vector3 axis, Vector3 direction, float outer, out Vector3 onSurface)
-        {
-            onSurface = axis;
-            if (probe == null)
-            {
-                return false;
-            }
-
-            Ray ray = new Ray(axis + direction * outer, -direction);
-            if (!probe.Raycast(ray, out RaycastHit hit, outer))
-            {
-                return false;
-            }
-
-            // 葉に少しうもれるくらいの位置に付ける
-            onSurface = hit.point + direction * (ornamentSize * 0.25f);
-            return true;
         }
 
         /// <summary>

@@ -11,27 +11,24 @@ namespace BallGame
     public static class ChristmasTree3DLayout
     {
         /// <summary>飾りを付ける段の高さ（葉の下 0 〜 てっぺん 1 の割合）。下の段から順に並べます。</summary>
-        public static readonly float[] RowHeights01 = { 0.2f, 0.47f, 0.72f };
+        public static readonly float[] RowHeights01 = { 0.26f, 0.5f, 0.74f };
 
         /// <summary>各段に付ける飾りの数。</summary>
         public static readonly int[] RowCounts = { 4, 3, 2 };
 
-        /// <summary>各段で飾りを広げる角度（度）。カメラの正面を 0 度として左右に広げます。</summary>
-        public static readonly float[] RowSpreadDegrees = { 100f, 76f, 44f };
-
-        /// <summary>見えなくする元の飾りのマテリアル名に含まれる言葉。</summary>
-        public static readonly string[] HiddenMaterialKeywords = { "Decorations", "Lights" };
+        /// <summary>各段で飾りを左右に広げる幅（ツリーの見かけの幅の半分を 1 とした割合）。</summary>
+        public static readonly float[] RowSpread01 = { 0.75f, 0.6f, 0.4f };
 
         /// <summary>
-        /// 飾り1つ分の場所です。
+        /// 飾り1つ分の場所です。カメラから見たときの、ツリーの中での位置で表します。
         /// </summary>
         public struct Slot
         {
             /// <summary>高さの割合（0 〜 1）。</summary>
             public float Height01;
 
-            /// <summary>カメラの正面からの向き（度）。</summary>
-            public float AngleDegrees;
+            /// <summary>カメラから見たツリーの左右の位置（-1 が左はし、0 が真ん中、1 が右はし）。</summary>
+            public float Lateral01;
         }
 
         /// <summary>
@@ -43,7 +40,7 @@ namespace BallGame
             List<Slot> slots = new List<Slot>();
             for (int row = 0; row < RowHeights01.Length; row++)
             {
-                AddRow(slots, RowHeights01[row], RowCounts[row], RowSpreadDegrees[row]);
+                AddRow(slots, RowHeights01[row], RowCounts[row], RowSpread01[row]);
             }
 
             return slots;
@@ -53,8 +50,8 @@ namespace BallGame
         {
             for (int i = 0; i < count; i++)
             {
-                float angle = count == 1 ? 0f : -spread * 0.5f + spread * i / (count - 1);
-                slots.Add(new Slot { Height01 = height01, AngleDegrees = angle });
+                float lateral = count == 1 ? 0f : -spread + 2f * spread * i / (count - 1);
+                slots.Add(new Slot { Height01 = height01, Lateral01 = lateral });
             }
         }
 
@@ -68,6 +65,9 @@ namespace BallGame
         {
             return baseRadius * (1f - Mathf.Clamp01(height01));
         }
+
+        /// <summary>見えなくする元の飾りのマテリアル名に含まれる言葉。</summary>
+        public static readonly string[] HiddenMaterialKeywords = { "Decorations", "Lights" };
 
         /// <summary>
         /// 見えなくする元の飾り（飾り玉・電球）のマテリアルかどうかを返します。

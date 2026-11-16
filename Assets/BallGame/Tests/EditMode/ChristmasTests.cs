@@ -125,7 +125,7 @@ namespace BallGame.Tests
         }
 
         [Test]
-        public void 立体のツリーの飾りは9か所でカメラ側に並ぶ()
+        public void 立体のツリーの飾りは9か所でカメラから見える範囲に並ぶ()
         {
             List<ChristmasTree3DLayout.Slot> slots = ChristmasTree3DLayout.GetSlots();
 
@@ -133,7 +133,17 @@ namespace BallGame.Tests
             foreach (ChristmasTree3DLayout.Slot slot in slots)
             {
                 Assert.That(slot.Height01, Is.InRange(0.05f, 0.9f));
-                Assert.That(slot.AngleDegrees, Is.InRange(-60f, 60f), "後ろ側（見えない所）には付けない");
+                Assert.That(slot.Lateral01, Is.InRange(-0.8f, 0.8f), "見かけの幅のふちには付けない");
+            }
+
+            for (int i = 0; i < slots.Count; i++)
+            {
+                for (int j = i + 1; j < slots.Count; j++)
+                {
+                    bool sameRow = Mathf.Abs(slots[i].Height01 - slots[j].Height01) < 0.01f;
+                    bool tooClose = sameRow && Mathf.Abs(slots[i].Lateral01 - slots[j].Lateral01) < 0.2f;
+                    Assert.That(tooClose, Is.False, "同じ段で飾りが重ならない");
+                }
             }
         }
 
