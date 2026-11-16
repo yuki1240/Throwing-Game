@@ -19,7 +19,7 @@ MonoBehaviour:
   effectDuration: 1
   flowerHeight: 360
   flowerGrowSeconds: 1
-  flowerHoldSeconds: 2
+  flowerDisplaySeconds: 3
   flowerFadeSeconds: 0.5
   themes:
   - backgroundName: Background_01_Sky

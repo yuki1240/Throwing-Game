@@ -55,7 +55,7 @@ namespace BallGame
         {
             RectTransform rect = CreateSlot("Flower " + sprite.name, wallUv);
             FlowerPlayer player = rect.gameObject.AddComponent<FlowerPlayer>();
-            player.Play(sprite, settings.flowerHeight, settings.flowerGrowSeconds, settings.flowerHoldSeconds, settings.flowerFadeSeconds);
+            player.Play(sprite, settings.flowerHeight, settings.flowerGrowSeconds, settings.GetFlowerHoldSeconds(), settings.flowerFadeSeconds);
             return rect;
         }
 

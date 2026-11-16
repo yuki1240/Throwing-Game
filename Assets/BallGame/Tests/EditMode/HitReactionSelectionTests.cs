@@ -102,6 +102,8 @@ namespace BallGame.Tests
             Assert.That(settings.effectDuration, Is.EqualTo(1f));
             Assert.That(settings.flowerHeight, Is.EqualTo(360f));
             Assert.That(settings.flowerGrowSeconds, Is.EqualTo(1f));
+            Assert.That(settings.flowerDisplaySeconds, Is.EqualTo(3f));
+            Assert.That(settings.GetFlowerHoldSeconds(), Is.EqualTo(1.5f).Within(1e-5f));
         }
 
         [Test]

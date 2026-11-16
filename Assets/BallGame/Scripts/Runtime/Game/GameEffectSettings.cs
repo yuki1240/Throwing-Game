@@ -57,9 +57,10 @@ namespace BallGame
         [Min(0.1f)]
         public float flowerGrowSeconds = 1f;
 
-        /// <summary>伸びきったあと表示しておく秒数。</summary>
-        [Min(0f)]
-        public float flowerHoldSeconds = 2f;
+        /// <summary>花が出てから消えきるまでの表示時間（秒）。伸びる時間と消える時間を含みます。</summary>
+        [Min(0.1f)]
+        [Tooltip("花が出てから消えきるまでの時間（秒）。伸びる時間と消える時間を含みます。")]
+        public float flowerDisplaySeconds = 3f;
 
         /// <summary>消えるまでの秒数。</summary>
         [Min(0.05f)]
@@ -67,6 +68,15 @@ namespace BallGame
 
         /// <summary>背景ごとの割り当て。</summary>
         public List<BackgroundTheme> themes = new List<BackgroundTheme>();
+
+        /// <summary>
+        /// 伸びきってから消え始めるまでの秒数を返します（表示時間 − 伸びる時間 − 消える時間、0 未満にはしない）。
+        /// </summary>
+        /// <returns>秒</returns>
+        public float GetFlowerHoldSeconds()
+        {
+            return Mathf.Max(0f, flowerDisplaySeconds - flowerGrowSeconds - flowerFadeSeconds);
+        }
 
         /// <summary>
         /// 背景に対応する割り当てを探します。名前が一致するものを優先し、無ければ並び順で探します。
