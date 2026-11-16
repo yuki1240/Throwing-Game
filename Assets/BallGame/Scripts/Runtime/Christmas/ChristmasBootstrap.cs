@@ -327,7 +327,6 @@ namespace BallGame
 
         private void OnWallHit(Vector2 wallUv)
         {
-            spawner.SpawnEffect(EffectKind.FlashParticles, wallUv);
             if (!environmentReady)
             {
                 return;
@@ -337,9 +336,12 @@ namespace BallGame
             bool isFinal = flow.IsNextFinal;
             if (!flow.RegisterHit(Time.time))
             {
+                // 前に数えてから1秒以内の当たり（弾んだボールなど）や、完成したあとの当たりは数えない。
+                // エフェクトだけ出て飾りが付かないと分かりにくいので、エフェクトも出さない
                 return;
             }
 
+            spawner.SpawnEffect(EffectKind.FlashParticles, wallUv);
             if (isFinal)
             {
                 PlaceStar(wallUv);
