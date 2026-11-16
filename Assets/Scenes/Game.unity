@@ -301,6 +301,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   settings: {fileID: 11400000, guid: dce9d6fa797f42dcbb062373e5366f3f, type: 2}
+  startBackgroundName: Background_02_Meadow
+  startFixed: 1
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

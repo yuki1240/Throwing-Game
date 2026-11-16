@@ -23,7 +23,13 @@ namespace BallGame
         Petal = 4,
 
         /// <summary>光の筋。</summary>
-        Bar = 5
+        Bar = 5,
+
+        /// <summary>上向きの三角（ツリーの葉）。</summary>
+        Triangle = 6,
+
+        /// <summary>五角の星。</summary>
+        Star = 7
     }
 
     /// <summary>
@@ -99,6 +105,10 @@ namespace BallGame
                     return Edge(1f - radius, 0.08f);
                 case EffectShape.Petal:
                     return PetalAlpha(x, y);
+                case EffectShape.Triangle:
+                    return TriangleAlpha(x, y);
+                case EffectShape.Star:
+                    return StarAlpha(x, y);
                 default:
                     return BarAlpha(x, y);
             }
@@ -119,6 +129,33 @@ namespace BallGame
             // 縦長で先がとがった形
             float width = 0.55f * Mathf.Sqrt(Mathf.Clamp01(1f - y * y)) * (1f - 0.35f * y);
             return Edge(width - Mathf.Abs(x), 0.06f);
+        }
+
+        private static float TriangleAlpha(float x, float y)
+        {
+            // 頂点が上（y=1）、底辺が下（y=-1）
+            float halfWidth = (1f - y) * 0.5f;
+            return Edge(halfWidth - Mathf.Abs(x), 0.03f) * Edge(y + 1f, 0.03f);
+        }
+
+        private static float StarAlpha(float x, float y)
+        {
+            return QuadMask.IsPointInPolygon(new Vector2(x, y), StarPolygon) ? 1f : 0f;
+        }
+
+        private static readonly Vector2[] StarPolygon = BuildStarPolygon(0.95f, 0.42f);
+
+        private static Vector2[] BuildStarPolygon(float outer, float inner)
+        {
+            Vector2[] points = new Vector2[10];
+            for (int i = 0; i < 10; i++)
+            {
+                float radius = i % 2 == 0 ? outer : inner;
+                float angle = Mathf.PI * 0.5f + i * Mathf.PI / 5f;
+                points[i] = new Vector2(Mathf.Cos(angle) * radius, Mathf.Sin(angle) * radius - 0.05f);
+            }
+
+            return points;
         }
 
         private static float BarAlpha(float x, float y)

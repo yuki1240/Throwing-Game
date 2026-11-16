@@ -23,6 +23,14 @@ namespace BallGame
         [Tooltip("演出設定（ScriptableObject）。空のときは初期値で動きます。")]
         private GameEffectSettings settings;
 
+        [SerializeField]
+        [Tooltip("最初に出す背景画像の名前（空なら名前順で最初の画像）。")]
+        private string startBackgroundName = string.Empty;
+
+        [SerializeField]
+        [Tooltip("オンにすると、背景を自動で切り替えない（固定）状態で始める。")]
+        private bool startFixed;
+
         private readonly System.Random random = new System.Random();
         private CalibrationSession session;
         private List<Texture2D> backgrounds = new List<Texture2D>();
@@ -83,6 +91,17 @@ namespace BallGame
         {
             backgrounds = BackgroundLibrary.LoadAll();
             rotation = new BackgroundRotation(backgrounds.Count);
+            rotation.IsFixed = startFixed;
+            SelectStartBackground();
+        }
+
+        private void SelectStartBackground()
+        {
+            int index = backgrounds.FindIndex(texture => string.Equals(texture.name, startBackgroundName, System.StringComparison.OrdinalIgnoreCase));
+            if (index >= 0)
+            {
+                rotation.Select(index);
+            }
         }
 
         private void BuildScreen()

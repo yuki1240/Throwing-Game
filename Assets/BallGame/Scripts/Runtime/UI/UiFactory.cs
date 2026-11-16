@@ -26,6 +26,7 @@ namespace BallGame
         public static readonly Color SelectedColor = new Color(0.45f, 0.85f, 0.45f, 1f);
 
         private static Font cachedFont;
+        private static Font cachedKidsFont;
 
         /// <summary>
         /// 日本語を表示できるフォントを返します（OS のフォントを使い、無ければ標準フォント）。
@@ -45,6 +46,41 @@ namespace BallGame
             }
 
             return cachedFont;
+        }
+
+        /// <summary>
+        /// 幼児にも読みやすい、教科書体のフォントを返します（無ければ通常のフォント）。
+        /// </summary>
+        /// <returns>フォント</returns>
+        public static Font GetKidsFont()
+        {
+            if (cachedKidsFont != null)
+            {
+                return cachedKidsFont;
+            }
+
+            cachedKidsFont = Font.CreateDynamicFontFromOSFont(new[] { "UD Digi Kyokasho NK-B", "UD Digi Kyokasho N-B", "UD Digi Kyokasho NK-R", "UD Digi Kyokasho N-R", "BIZ UDPGothic", "Yu Gothic UI", "Meiryo" }, 64);
+            return cachedKidsFont != null ? cachedKidsFont : GetFont();
+        }
+
+        /// <summary>
+        /// 子ども向けの大きな文字を作ります（白い文字に濃い縁取り）。
+        /// </summary>
+        /// <param name="parent">親</param>
+        /// <param name="content">文字</param>
+        /// <param name="fontSize">大きさ</param>
+        /// <param name="color">文字の色</param>
+        /// <returns>Text</returns>
+        public static Text CreateKidsText(Transform parent, string content, int fontSize, Color color)
+        {
+            Text text = CreateText(parent, content, fontSize, TextAnchor.MiddleCenter);
+            text.font = GetKidsFont();
+            text.color = color;
+            text.fontStyle = FontStyle.Bold;
+            Outline outline = text.gameObject.AddComponent<Outline>();
+            outline.effectColor = new Color(0.08f, 0.1f, 0.25f, 0.95f);
+            outline.effectDistance = new Vector2(4f, -4f);
+            return text;
         }
 
         /// <summary>

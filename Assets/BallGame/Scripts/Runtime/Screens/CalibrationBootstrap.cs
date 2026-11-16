@@ -10,8 +10,8 @@ namespace BallGame
     /// </summary>
     public sealed class CalibrationBootstrap : MonoBehaviour
     {
-        /// <summary>Game シーンの名前。</summary>
-        public const string GameSceneName = "Game";
+        /// <summary>校正のあとに始める最初の場面（クリスマス）のシーン名。</summary>
+        public const string GameSceneName = "Christmas";
 
         /// <summary>リセットの確認を待つ秒数。</summary>
         public const float ResetConfirmSeconds = 3f;
