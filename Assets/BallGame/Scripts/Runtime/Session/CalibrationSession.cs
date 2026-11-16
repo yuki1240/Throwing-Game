@@ -256,6 +256,33 @@ namespace BallGame
         }
 
         /// <summary>
+        /// 隅を1つ動かします。画面の表示だけ先に変え、保存と検知の作り直しは EndCornerEdit で行います。
+        /// </summary>
+        /// <param name="index">隅の番号</param>
+        /// <param name="imageUv">新しい位置（深度画像上の 0〜1）</param>
+        public void MoveCorner(int index, Vector2 imageUv)
+        {
+            Data.SetCorner(index, imageUv);
+        }
+
+        /// <summary>
+        /// 四隅をまとめて動かします。保存と検知の作り直しは EndCornerEdit で行います。
+        /// </summary>
+        /// <param name="delta">動かす量（深度画像上の 0〜1）</param>
+        public void MoveAllCorners(Vector2 delta)
+        {
+            Data.TranslateCorners(delta);
+        }
+
+        /// <summary>
+        /// 四隅の移動を確定し、壁の面と検知範囲を作り直して保存します。
+        /// </summary>
+        public void EndCornerEdit()
+        {
+            ApplyCalibrationChange();
+        }
+
+        /// <summary>
         /// 四隅を消して置き直せるようにします（基準は残します）。
         /// </summary>
         public void ClearCorners()

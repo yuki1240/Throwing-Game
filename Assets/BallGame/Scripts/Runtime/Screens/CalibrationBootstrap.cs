@@ -22,6 +22,14 @@ namespace BallGame
         private const float PreviewMaxHeight = 930f;
         private const float PanelLeft = 1180f;
         private const float PanelWidth = 700f;
+        private const float CornerGrabRadius = 40f;
+
+        private enum DragMode
+        {
+            None,
+            Corner,
+            Quad
+        }
 
         private static readonly Color WaitingColor = new Color(0.25f, 0.25f, 0.3f, 1f);
 
@@ -44,6 +52,9 @@ namespace BallGame
         private Text guideText;
         private Text statusText;
         private float resetRequestedAt = float.NegativeInfinity;
+        private DragMode dragMode = DragMode.None;
+        private int dragCornerIndex = -1;
+        private Vector2 lastDragImageUv;
 
         private void Start()
         {
@@ -88,7 +99,10 @@ namespace BallGame
             RectTransform previewRect = UiFactory.CreateRect(frame.transform, "DepthPreview");
             preview = previewRect.gameObject.AddComponent<RawImage>();
             preview.color = WaitingColor;
-            previewRect.gameObject.AddComponent<PointerReceiver>().Pressed += OnPreviewPressed;
+            PointerReceiver receiver = previewRect.gameObject.AddComponent<PointerReceiver>();
+            receiver.Pressed += OnPreviewPressed;
+            receiver.Dragged += OnPreviewDragged;
+            receiver.Released += OnPreviewReleased;
             BuildCornerLines(previewRect);
             BuildCornerMarkers(previewRect);
         }
@@ -100,7 +114,7 @@ namespace BallGame
             {
                 Image marker = UiFactory.CreatePanel(parent, "Corner " + CornerNames[i], new Color(0.2f, 0.9f, 0.3f, 1f));
                 marker.raycastTarget = false;
-                marker.rectTransform.sizeDelta = new Vector2(22f, 22f);
+                marker.rectTransform.sizeDelta = new Vector2(28f, 28f);
                 SetTopLeftAnchor(marker.rectTransform, new Vector2(0.5f, 0.5f));
                 Text label = UiFactory.CreateText(marker.transform, (i + 1) + " " + CornerNames[i], 26, TextAnchor.MiddleLeft);
                 label.color = new Color(0.2f, 1f, 0.3f, 1f);
@@ -176,9 +190,97 @@ namespace BallGame
 
         private void OnPreviewPressed(Vector2 normalized)
         {
-            Vector2 previewUv = new Vector2(normalized.x, 1f - normalized.y);
+            Vector2 previewUv = ToPreviewUv(normalized);
             Vector2 imageUv = MountGeometry.PreviewToImage(previewUv, session.Data.Mount);
+            if (TryBeginCornerDrag(previewUv))
+            {
+                return;
+            }
+
+            if (TryBeginQuadDrag(imageUv))
+            {
+                return;
+            }
+
             session.AddCorner(imageUv);
+        }
+
+        private void OnPreviewDragged(Vector2 normalized)
+        {
+            Vector2 imageUv = MountGeometry.PreviewToImage(ToPreviewUv(normalized), session.Data.Mount);
+            if (dragMode == DragMode.Corner)
+            {
+                session.MoveCorner(dragCornerIndex, imageUv);
+            }
+            else if (dragMode == DragMode.Quad)
+            {
+                session.MoveAllCorners(imageUv - lastDragImageUv);
+                lastDragImageUv = imageUv;
+            }
+        }
+
+        private void OnPreviewReleased(Vector2 normalized)
+        {
+            if (dragMode == DragMode.None)
+            {
+                return;
+            }
+
+            dragMode = DragMode.None;
+            dragCornerIndex = -1;
+            session.EndCornerEdit();
+        }
+
+        private static Vector2 ToPreviewUv(Vector2 normalized)
+        {
+            return new Vector2(normalized.x, 1f - normalized.y);
+        }
+
+        private bool TryBeginCornerDrag(Vector2 previewUv)
+        {
+            int index = FindCornerNear(previewUv);
+            if (index < 0)
+            {
+                return false;
+            }
+
+            dragMode = DragMode.Corner;
+            dragCornerIndex = index;
+            return true;
+        }
+
+        private bool TryBeginQuadDrag(Vector2 imageUv)
+        {
+            CalibrationData data = session.Data;
+            if (!data.HasAllCorners || !QuadMask.IsPointInPolygon(imageUv, data.Corners))
+            {
+                return false;
+            }
+
+            dragMode = DragMode.Quad;
+            lastDragImageUv = imageUv;
+            return true;
+        }
+
+        private int FindCornerNear(Vector2 previewUv)
+        {
+            CalibrationData data = session.Data;
+            Vector2 size = preview.rectTransform.rect.size;
+            int best = -1;
+            float bestDistance = CornerGrabRadius;
+            for (int i = 0; i < data.Corners.Count; i++)
+            {
+                Vector2 cornerUv = MountGeometry.ImageToPreview(data.Corners[i], data.Mount);
+                Vector2 difference = new Vector2((cornerUv.x - previewUv.x) * size.x, (cornerUv.y - previewUv.y) * size.y);
+                float distance = difference.magnitude;
+                if (distance <= bestDistance)
+                {
+                    best = i;
+                    bestDistance = distance;
+                }
+            }
+
+            return best;
         }
 
         private void OnMountPressed(MountOrientation mount)
@@ -410,11 +512,11 @@ namespace BallGame
             }
             else if (!data.MatchesResolution(session.FrameWidth, session.FrameHeight))
             {
-                step = "次：壁の前に人がいない状態で「基準を録る」";
+                step = "次：壁の前に人がいない状態で「基準を録る」\n四隅はドラッグで動かせます（内側をドラッグすると全体が動きます）。";
             }
             else
             {
-                step = "校正済み。赤い点は検知の候補です。「ゲームへ」で始めます。";
+                step = "校正済み。赤い点は検知の候補です。「ゲームへ」で始めます。\n四隅はドラッグで動かせます（内側をドラッグすると全体が動きます）。";
             }
 
             return MountGeometry.GetDisplayName(data.Mount) + "：" + nearSide + "\n" + step;

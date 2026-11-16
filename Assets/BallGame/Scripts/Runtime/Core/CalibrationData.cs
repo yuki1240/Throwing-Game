@@ -159,6 +159,56 @@ namespace BallGame
         }
 
         /// <summary>
+        /// 置いてある隅を1つ動かします（0〜1 に収めます）。
+        /// </summary>
+        /// <param name="index">隅の番号（0:左上 1:右上 2:右下 3:左下）</param>
+        /// <param name="imageUv">新しい位置（深度画像上の 0〜1）</param>
+        /// <returns>動かせたとき true</returns>
+        public bool SetCorner(int index, Vector2 imageUv)
+        {
+            if (index < 0 || index >= Corners.Count)
+            {
+                return false;
+            }
+
+            Corners[index] = new Vector2(Mathf.Clamp01(imageUv.x), Mathf.Clamp01(imageUv.y));
+            return true;
+        }
+
+        /// <summary>
+        /// 置いてある隅をすべて同じだけ動かします。どの隅も画像からはみ出さないように動く量を縮めます。
+        /// </summary>
+        /// <param name="delta">動かす量（深度画像上の 0〜1）</param>
+        /// <returns>実際に動かした量</returns>
+        public Vector2 TranslateCorners(Vector2 delta)
+        {
+            Vector2 applied = ClampTranslation(delta);
+            for (int i = 0; i < Corners.Count; i++)
+            {
+                Corners[i] += applied;
+            }
+
+            return applied;
+        }
+
+        private Vector2 ClampTranslation(Vector2 delta)
+        {
+            float minX = -1f;
+            float maxX = 1f;
+            float minY = -1f;
+            float maxY = 1f;
+            foreach (Vector2 corner in Corners)
+            {
+                minX = Mathf.Max(minX, -corner.x);
+                maxX = Mathf.Min(maxX, 1f - corner.x);
+                minY = Mathf.Max(minY, -corner.y);
+                maxY = Mathf.Min(maxY, 1f - corner.y);
+            }
+
+            return new Vector2(Mathf.Clamp(delta.x, minX, maxX), Mathf.Clamp(delta.y, minY, maxY));
+        }
+
+        /// <summary>
         /// 壁からの距離（cm）を 5〜80 に収めて設定します。
         /// </summary>
         /// <param name="centimeters">cm</param>

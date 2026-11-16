@@ -171,5 +171,29 @@ namespace BallGame.Tests
             Assert.That(recorder.IsComplete, Is.True);
             Assert.That(recorder.BuildMedian(), Is.EqualTo(new ushort[] { 1000, 2010 }));
         }
+
+        [Test]
+        public void 隅は1つずつ動かせて画像の外には出ない()
+        {
+            CalibrationData data = CreateSample();
+
+            Assert.That(data.SetCorner(1, new Vector2(1.4f, 0.3f)), Is.True);
+            Assert.That(data.Corners[1], Is.EqualTo(new Vector2(1f, 0.3f)));
+            Assert.That(data.SetCorner(7, Vector2.zero), Is.False);
+            Assert.That(data.HasBaseline, Is.True);
+        }
+
+        [Test]
+        public void 四隅はまとめて動かせてはみ出す分は縮める()
+        {
+            CalibrationData data = CreateSample();
+            Vector2 applied = data.TranslateCorners(new Vector2(0.5f, -0.05f));
+
+            Assert.That(applied.x, Is.EqualTo(0.1f).Within(1e-5f));
+            Assert.That(applied.y, Is.EqualTo(-0.05f).Within(1e-5f));
+            Assert.That(data.Corners[1].x, Is.EqualTo(1f).Within(1e-5f));
+            Assert.That(data.Corners[0].x, Is.EqualTo(0.2f).Within(1e-5f));
+            Assert.That(data.Corners[0].y, Is.EqualTo(0.15f).Within(1e-5f));
+        }
     }
 }
