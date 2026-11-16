@@ -22,6 +22,12 @@ namespace BallGame
         private const string InvisibleShaderName = "BallGame/Invisible";
         private const float BulbBlinkSpeed = 5f;
 
+        /// <summary>星の先が画面の上から何割までに収まっていてほしいか（上端が 1）。</summary>
+        private const float MaxStarViewportY = 0.9f;
+
+        /// <summary>画角を広げてよい上限（度）。</summary>
+        private const float MaxFieldOfView = 80f;
+
         private static readonly Color BulbOffColor = new Color(0.35f, 0.05f, 0.06f, 1f);
         private static readonly Color BulbOnColor = new Color(1f, 0.12f, 0.1f, 1f);
         private static readonly Color StarColor = new Color(1f, 0.85f, 0.2f, 1f);
@@ -110,6 +116,23 @@ namespace BallGame
             ornamentSize = treeBounds.size.y * 0.075f;
             starSize = treeBounds.size.y * 0.09f;
             slotPositions = ComputeSlotPositions(tree);
+            EnsureStarFitsOnScreen();
+        }
+
+        private void EnsureStarFitsOnScreen()
+        {
+            // 部屋のカメラはツリーの先端が画面の上ぎりぎりなので、星が切れないよう画角を少しずつ広げる
+            if (viewCamera.orthographic)
+            {
+                return;
+            }
+
+            Vector3 starTip = new Vector3(treeBounds.center.x, treeBounds.max.y + starSize * 1.7f, treeBounds.center.z);
+            int guard = 0;
+            while (viewCamera.WorldToViewportPoint(starTip).y > MaxStarViewportY && viewCamera.fieldOfView < MaxFieldOfView && guard++ < 100)
+            {
+                viewCamera.fieldOfView += 0.5f;
+            }
         }
 
         private static void HideOriginalDecorations(Transform tree)
@@ -386,7 +409,7 @@ namespace BallGame
             starObject.AddComponent<MeshFilter>().sharedMesh = BuildStarMesh();
             MeshRenderer renderer = starObject.AddComponent<MeshRenderer>();
             Material material = CreateMaterial(StarColor, 0.6f);
-            SetEmission(material, StarColor * 2.5f);
+            SetEmission(material, StarColor * 1.6f);
             material.SetFloat("_Cull", 0f); // 面の向きに関係なく両面とも描く
             renderer.sharedMaterial = material;
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
