@@ -81,6 +81,16 @@ namespace BallGame
             return order;
         }
 
+        /// <summary>
+        /// 何個目の飾りを赤い電球にするかを返します（3個に1個）。
+        /// </summary>
+        /// <param name="ornamentIndex">飾りの番号（0 始まり）</param>
+        /// <returns>赤い電球なら true</returns>
+        public static bool IsRedBulb(int ornamentIndex)
+        {
+            return ornamentIndex % 3 == 2;
+        }
+
         private static void AddRow(List<Vector2> slots, float y, int count)
         {
             float spread = GetHalfWidthAt(y) * 1.5f;

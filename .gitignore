@@ -55,3 +55,7 @@ Desktop.ini
 
 # 転送用の一時フォルダ
 /_transfer/
+
+# アセットストアの素材（容量が大きく、再配布もできないため各自で取り込む）
+/[Aa]ssets/Polyart/
+/[Aa]ssets/Polyart.meta

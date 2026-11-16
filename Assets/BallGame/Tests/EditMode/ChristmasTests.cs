@@ -117,11 +117,53 @@ namespace BallGame.Tests
             int bulbs = 0;
             for (int i = 0; i < ChristmasFlow.DefaultGoal - 1; i++)
             {
-                bulbs += ChristmasBootstrap.IsRedBulb(i) ? 1 : 0;
+                bulbs += ChristmasTreeLayout.IsRedBulb(i) ? 1 : 0;
             }
 
             Assert.That(bulbs, Is.EqualTo(3));
-            Assert.That(ChristmasBootstrap.IsRedBulb(0), Is.False, "最初はボール");
+            Assert.That(ChristmasTreeLayout.IsRedBulb(0), Is.False, "最初はボール");
+        }
+
+        [Test]
+        public void 立体のツリーの飾りは9か所でカメラ側に並ぶ()
+        {
+            List<ChristmasTree3DLayout.Slot> slots = ChristmasTree3DLayout.GetSlots();
+
+            Assert.That(slots.Count, Is.EqualTo(ChristmasFlow.DefaultGoal - 1), "最後の1回は星");
+            foreach (ChristmasTree3DLayout.Slot slot in slots)
+            {
+                Assert.That(slot.Height01, Is.InRange(0.05f, 0.9f));
+                Assert.That(slot.AngleDegrees, Is.InRange(-60f, 60f), "後ろ側（見えない所）には付けない");
+            }
+        }
+
+        [Test]
+        public void 立体のツリーは上ほど細い()
+        {
+            Assert.That(ChristmasTree3DLayout.GetConeRadius(0f, 2f), Is.EqualTo(2f).Within(1e-5f));
+            Assert.That(ChristmasTree3DLayout.GetConeRadius(0.5f, 2f), Is.EqualTo(1f).Within(1e-5f));
+            Assert.That(ChristmasTree3DLayout.GetConeRadius(1f, 2f), Is.EqualTo(0f).Within(1e-5f));
+        }
+
+        [Test]
+        public void 元の飾りと電球のマテリアルだけを隠す()
+        {
+            Assert.That(ChristmasTree3DLayout.IsHiddenMaterialName("MI_Christmas_Decorations"), Is.True);
+            Assert.That(ChristmasTree3DLayout.IsHiddenMaterialName("MI_Christmas_Lights (Instance)"), Is.True);
+            Assert.That(ChristmasTree3DLayout.IsHiddenMaterialName("MI_Christmas_TreeLeavesSnow"), Is.False);
+            Assert.That(ChristmasTree3DLayout.IsHiddenMaterialName("MI_Christmas_TreeBark"), Is.False);
+            Assert.That(ChristmasTree3DLayout.IsHiddenMaterialName(null), Is.False);
+        }
+
+        [Test]
+        public void 星は先が上を向いた5つの角()
+        {
+            Vector3[] outline = ChristmasTree3DLayout.GetStarOutline(5, 1f, 0.45f);
+
+            Assert.That(outline.Length, Is.EqualTo(10));
+            Assert.That(outline[0].x, Is.EqualTo(0f).Within(1e-5f));
+            Assert.That(outline[0].y, Is.EqualTo(1f).Within(1e-5f), "先が真上");
+            Assert.That(outline[1].magnitude, Is.EqualTo(0.45f).Within(1e-5f), "内側の点");
         }
 
         [Test]

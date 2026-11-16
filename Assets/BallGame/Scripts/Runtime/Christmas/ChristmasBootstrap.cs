@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -12,6 +13,8 @@ namespace BallGame
     /// 完成したら「クリスマスツリーの完成～！」ときらきらを出し、10秒のカウントダウンのあと次の場面（草原）へ移ります。
     /// 当たりは1秒に1個まで数えます。
     /// 遊ぶのは幼稚園の子どもなので、文字は大きく、ひらがなを多くしています。
+    /// 3D の部屋（Polyart の PolyartChristmasScene）が入っていれば、その部屋の 3D のツリーを飾ります。
+    /// 入っていないときは、これまでの 2D の絵のツリーで遊べます。
     /// </summary>
     public sealed class ChristmasBootstrap : MonoBehaviour
     {
@@ -61,6 +64,9 @@ namespace BallGame
         private GameObject overlay;
         private float nextBurstAt;
         private bool sceneRequested;
+        private RectTransform backdrop;
+        private ChristmasTree3D tree3D;
+        private bool environmentReady;
 
         private void Start()
         {
@@ -70,6 +76,78 @@ namespace BallGame
             slotOrder = ChristmasTreeLayout.GetShuffledOrder(slots.Count, random);
             BuildScreen();
             RefreshTexts();
+            if (ChristmasTree3D.CanLoadEnvironment())
+            {
+                StartCoroutine(LoadEnvironment());
+            }
+            else
+            {
+                FallBackTo2D();
+            }
+        }
+
+        private IEnumerator LoadEnvironment()
+        {
+            // 3D の部屋（暖炉・雪だるま・プレゼントなど）を、このシーンに重ねて読み込む
+            AsyncOperation loading = SceneManager.LoadSceneAsync(ChristmasTree3D.EnvironmentSceneName, LoadSceneMode.Additive);
+            if (loading == null)
+            {
+                FallBackTo2D();
+                yield break;
+            }
+
+            while (!loading.isDone)
+            {
+                yield return null;
+            }
+
+            Scene environment = SceneManager.GetSceneByName(ChristmasTree3D.EnvironmentSceneName);
+            if (!environment.IsValid())
+            {
+                FallBackTo2D();
+                yield break;
+            }
+
+            // 部屋の明かり・空の設定を使うため、部屋のシーンを「今のシーン」にする
+            SceneManager.SetActiveScene(environment);
+            tree3D = ChristmasTree3D.Create(environment);
+            if (tree3D == null)
+            {
+                SceneManager.UnloadSceneAsync(environment);
+                FallBackTo2D();
+                yield break;
+            }
+
+            DisableOwnCamera();
+            environmentReady = true;
+            Debug.Log("[Christmas] 3D の部屋を読み込みました。");
+        }
+
+        private void DisableOwnCamera()
+        {
+            // 部屋のカメラで映すので、このシーンのカメラとリスナーは止める
+            foreach (GameObject root in gameObject.scene.GetRootGameObjects())
+            {
+                foreach (Camera ownCamera in root.GetComponentsInChildren<Camera>(true))
+                {
+                    ownCamera.enabled = false;
+                }
+
+                foreach (AudioListener listener in root.GetComponentsInChildren<AudioListener>(true))
+                {
+                    listener.enabled = false;
+                }
+            }
+        }
+
+        private void FallBackTo2D()
+        {
+            Debug.LogWarning("[Christmas] 3D の部屋（" + ChristmasTree3D.EnvironmentSceneName + "）を読み込めないため、2D のツリーで遊びます。");
+            BuildSky(backdrop);
+            BuildSnowGround(backdrop);
+            BuildSnowFall(backdrop);
+            BuildTree(backdrop);
+            environmentReady = true;
         }
 
         private void Update()
@@ -86,10 +164,8 @@ namespace BallGame
         private void BuildScreen()
         {
             Canvas canvas = UiFactory.CreateCanvas("ChristmasCanvas", 0);
-            BuildSky(canvas.transform);
-            BuildSnowGround(canvas.transform);
-            BuildSnowFall(canvas.transform);
-            BuildTree(canvas.transform);
+            backdrop = CreateFullLayer(canvas.transform, "Backdrop（2D のときだけ使う）");
+            BuildClickCatcher(canvas.transform);
             ornamentLayer = CreateFullLayer(canvas.transform, "Ornaments");
             star = BuildStar(canvas.transform);
             star.gameObject.SetActive(false);
@@ -105,12 +181,21 @@ namespace BallGame
             return rect;
         }
 
-        private void BuildSky(Transform parent)
+        private void BuildClickCatcher(Transform parent)
+        {
+            // 模擬深度のときに画面のクリックをボールの当たりにするための、透明な受け口
+            RectTransform rect = CreateFullLayer(parent, "ClickCatcher");
+            Image catcher = rect.gameObject.AddComponent<Image>();
+            catcher.color = new Color(1f, 1f, 1f, 0f);
+            rect.gameObject.AddComponent<PointerReceiver>().Pressed += OnSkyPressed;
+        }
+
+        private static void BuildSky(Transform parent)
         {
             RectTransform rect = CreateFullLayer(parent, "Sky");
             RawImage sky = rect.gameObject.AddComponent<RawImage>();
             sky.texture = CreateGradientTexture(new Color(0.03f, 0.06f, 0.2f), new Color(0.12f, 0.25f, 0.5f));
-            rect.gameObject.AddComponent<PointerReceiver>().Pressed += OnSkyPressed;
+            sky.raycastTarget = false;
         }
 
         private static Texture2D CreateGradientTexture(Color top, Color bottom)
@@ -237,6 +322,11 @@ namespace BallGame
         private void OnWallHit(Vector2 wallUv)
         {
             spawner.SpawnEffect(EffectKind.FlashParticles, wallUv);
+            if (!environmentReady)
+            {
+                return;
+            }
+
             int ornamentIndex = flow.HitCount;
             bool isFinal = flow.IsNextFinal;
             if (!flow.RegisterHit(Time.time))
@@ -254,20 +344,19 @@ namespace BallGame
             }
         }
 
-        /// <summary>
-        /// 何個目の飾りを赤い電球にするかを返します（3個に1個）。
-        /// </summary>
-        /// <param name="ornamentIndex">飾りの番号（0 始まり）</param>
-        /// <returns>赤い電球なら true</returns>
-        public static bool IsRedBulb(int ornamentIndex)
-        {
-            return ornamentIndex % 3 == 2;
-        }
-
         private void AddOrnament(int ornamentIndex, Vector2 wallUv)
         {
-            Vector2 slot = slots[slotOrder[ornamentIndex % slotOrder.Length]];
-            Image ornament = IsRedBulb(ornamentIndex) ? CreateRedBulb(ornamentIndex, slot) : CreateBall(ornamentIndex, slot);
+            int slotIndex = slotOrder[ornamentIndex % slotOrder.Length];
+            bool redBulb = ChristmasTreeLayout.IsRedBulb(ornamentIndex);
+            if (tree3D != null)
+            {
+                // 壁の位置（左下 0・右上 1）は、そのまま画面の位置として使う
+                tree3D.AddOrnament(slotIndex, redBulb, OrnamentColors[random.Next(OrnamentColors.Length)], wallUv);
+                return;
+            }
+
+            Vector2 slot = slots[slotIndex];
+            Image ornament = redBulb ? CreateRedBulb(ornamentIndex, slot) : CreateBall(ornamentIndex, slot);
             ornament.gameObject.AddComponent<OrnamentFlight>().Fly(ToLayer(wallUv), slot);
         }
 
@@ -312,6 +401,12 @@ namespace BallGame
 
         private void PlaceStar(Vector2 wallUv)
         {
+            if (tree3D != null)
+            {
+                tree3D.PlaceStar(wallUv);
+                return;
+            }
+
             star.gameObject.SetActive(true);
             star.gameObject.AddComponent<OrnamentFlight>().Fly(ToLayer(wallUv), ChristmasTreeLayout.StarPosition);
             LightUpBulbs();
@@ -338,8 +433,16 @@ namespace BallGame
                 return;
             }
 
-            star.color = StarBrightColor;
-            star.transform.localRotation = Quaternion.Euler(0f, 0f, 8f * Mathf.Sin(Time.time * 3f));
+            if (tree3D != null)
+            {
+                tree3D.SetCelebrating(true);
+            }
+            else
+            {
+                star.color = StarBrightColor;
+                star.transform.localRotation = Quaternion.Euler(0f, 0f, 8f * Mathf.Sin(Time.time * 3f));
+            }
+
             if (Time.time >= nextBurstAt)
             {
                 nextBurstAt = Time.time + CelebrationBurstInterval;
@@ -350,12 +453,20 @@ namespace BallGame
         private void SpawnCelebrationBurst()
         {
             // きらきら：ツリーのまわりに光の粒を出す
-            Vector2 canvasPoint = new Vector2(
-                ChristmasTreeLayout.CenterX + (float)(random.NextDouble() * 2.0 - 1.0) * 450f,
-                ChristmasTreeLayout.BaseY + (float)random.NextDouble() * (ChristmasTreeLayout.ApexY - ChristmasTreeLayout.BaseY + 100f));
-            Vector2 wallUv = new Vector2(canvasPoint.x / UiFactory.ReferenceResolution.x, canvasPoint.y / UiFactory.ReferenceResolution.y);
+            Rect area = tree3D != null ? tree3D.GetViewportRect() : Get2DTreeArea();
+            Vector2 wallUv = new Vector2(
+                area.xMin + (float)random.NextDouble() * area.width,
+                area.yMin + (float)random.NextDouble() * area.height);
             EffectKind kind = random.Next(3) == 0 ? EffectKind.Flash : EffectKind.FlashParticles;
             spawner.SpawnEffect(kind, wallUv);
+        }
+
+        private static Rect Get2DTreeArea()
+        {
+            Vector2 size = UiFactory.ReferenceResolution;
+            float xMin = (ChristmasTreeLayout.CenterX - 450f) / size.x;
+            float yMin = ChristmasTreeLayout.BaseY / size.y;
+            return new Rect(xMin, yMin, 900f / size.x, (ChristmasTreeLayout.ApexY - ChristmasTreeLayout.BaseY + 100f) / size.y);
         }
 
         private void RefreshTexts()
@@ -387,7 +498,8 @@ namespace BallGame
             string blob = result != null ? result.DescribeLargestBlob() : string.Empty;
             string state = result != null && result.PersonDetected ? "（人を検知中）" : string.Empty;
             string click = session.IsSimulated ? "\n模擬深度：画面をクリックするとボールが当たります" : string.Empty;
-            return "クリスマス　飾り " + flow.HitCount + " / " + flow.Goal + state + "\n" + blob + click;
+            string mode = tree3D != null ? "3D" : environmentReady ? "2D" : "3D 読み込み中";
+            return "クリスマス（" + mode + "）　飾り " + flow.HitCount + " / " + flow.Goal + state + "\n" + blob + click;
         }
 
         private void OnSkyPressed(Vector2 wallUv)
