@@ -327,6 +327,9 @@ namespace BallGame
 
         private void OnWallHit(Vector2 wallUv)
         {
+            // 当たったことは毎回エフェクトで知らせる。
+            // 飾りが付くのは、前に数えてから1秒以上たった当たりだけ（1秒以内の当たりはエフェクトのみ）
+            spawner.SpawnEffect(EffectKind.FlashParticles, wallUv);
             if (!environmentReady)
             {
                 return;
@@ -336,12 +339,9 @@ namespace BallGame
             bool isFinal = flow.IsNextFinal;
             if (!flow.RegisterHit(Time.time))
             {
-                // 前に数えてから1秒以内の当たり（弾んだボールなど）や、完成したあとの当たりは数えない。
-                // エフェクトだけ出て飾りが付かないと分かりにくいので、エフェクトも出さない
                 return;
             }
 
-            spawner.SpawnEffect(EffectKind.FlashParticles, wallUv);
             if (isFinal)
             {
                 PlaceStar(wallUv);
