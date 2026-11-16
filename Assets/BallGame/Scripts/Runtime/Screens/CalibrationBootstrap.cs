@@ -23,6 +23,8 @@ namespace BallGame
         private const float PanelLeft = 1180f;
         private const float PanelWidth = 700f;
 
+        private static readonly Color WaitingColor = new Color(0.25f, 0.25f, 0.3f, 1f);
+
         private static readonly string[] CornerNames = { "左上", "右上", "右下", "左下" };
 
         private CalibrationSession session;
@@ -85,7 +87,7 @@ namespace BallGame
             UiFactory.PlaceTopLeft(frame.rectTransform, PreviewLeft, PreviewTop, PreviewMaxWidth, PreviewMaxHeight);
             RectTransform previewRect = UiFactory.CreateRect(frame.transform, "DepthPreview");
             preview = previewRect.gameObject.AddComponent<RawImage>();
-            preview.color = Color.white;
+            preview.color = WaitingColor;
             previewRect.gameObject.AddComponent<PointerReceiver>().Pressed += OnPreviewPressed;
             BuildCornerLines(previewRect);
             BuildCornerMarkers(previewRect);
@@ -273,6 +275,7 @@ namespace BallGame
             DetectionResult result = session.LatestResult;
             bool[] candidates = result != null && session.IsSavedCalibrationUsable ? result.CandidateMask : null;
             HitDetector detector = session.IsSavedCalibrationUsable ? session.Detector : null;
+            preview.color = Color.white;
             preview.texture = previewRenderer.Render(session.LatestDepth, session.FrameWidth, session.FrameHeight, session.Data.Mount, candidates, detector);
         }
 

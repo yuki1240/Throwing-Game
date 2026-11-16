@@ -391,7 +391,7 @@ namespace BallGame
         private void PollFrame()
         {
             hasNewFrame = false;
-            if (source == null || !source.TryGetLatestFrame(depthBuffer))
+            if (source == null || !TryReadFrame())
             {
                 return;
             }
@@ -406,6 +406,29 @@ namespace BallGame
             waitingForKinect = false;
             UpdateKinectStatus();
             latestResult = detector.Process(depthBuffer, Time.time);
+        }
+
+        private bool TryReadFrame()
+        {
+            try
+            {
+                return source.TryGetLatestFrame(depthBuffer);
+            }
+            catch (System.Exception exception)
+            {
+                Debug.LogError("Kinect から深度を読めなかったため、模擬深度に切り替えます: " + exception.Message);
+                SwitchToSimulator("Kinect から深度を読めなかったため、模擬深度（320×240）で動いています。");
+                return false;
+            }
+        }
+
+        private void SwitchToSimulator(string status)
+        {
+            CloseSource();
+            source = new SimulatedDepthSource(data.Mount);
+            depthBuffer = new ushort[source.Width * source.Height];
+            sourceStatus = status;
+            Reconfigure();
         }
 
         private void UpdateKinectStatus()
@@ -429,11 +452,7 @@ namespace BallGame
             }
 
             Debug.LogWarning("Kinect から深度が届かないため、模擬深度に切り替えます。");
-            CloseSource();
-            source = new SimulatedDepthSource(data.Mount);
-            depthBuffer = new ushort[source.Width * source.Height];
-            sourceStatus = "Kinect がつながっていないため、模擬深度（320×240）で動いています。";
-            Reconfigure();
+            SwitchToSimulator("Kinect がつながっていないため、模擬深度（320×240）で動いています。");
         }
 
         private void ApplyMountToSimulator()

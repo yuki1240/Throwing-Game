@@ -27,8 +27,8 @@ namespace BallGame
         /// <summary>IKinectSensor::get_DepthFrameSource の番号。</summary>
         public const int SlotSensorDepthFrameSource = 11;
 
-        /// <summary>IDepthFrameSource::OpenReader の番号。</summary>
-        public const int SlotSourceOpenReader = 10;
+        /// <summary>IDepthFrameSource::OpenReader の番号（get_IsActive の次）。</summary>
+        public const int SlotSourceOpenReader = 7;
 
         /// <summary>IDepthFrameReader::AcquireLatestFrame の番号。</summary>
         public const int SlotReaderAcquireLatestFrame = 6;
