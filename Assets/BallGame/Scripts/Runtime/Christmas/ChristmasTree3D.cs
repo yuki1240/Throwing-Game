@@ -23,7 +23,7 @@ namespace BallGame
         private const float BulbBlinkSpeed = 5f;
 
         /// <summary>星の中心の高さ（ツリーの最上部を 0 として、星の大きさの何倍か。マイナスなら下）。星がてっぺんに少しかかるくらいにします。</summary>
-        private const float StarCenterOffset = -0.35f;
+        private const float StarCenterOffset = -1.1f;
 
         /// <summary>星の光の強さ（まぶしすぎないよう控えめにします）。</summary>
         private const float StarEmissionScale = 0.45f;
