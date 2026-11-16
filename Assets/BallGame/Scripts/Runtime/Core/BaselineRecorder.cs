@@ -11,6 +11,9 @@ namespace BallGame
         /// <summary>録る枚数の初期値。</summary>
         public const int DefaultFrameCount = 30;
 
+        /// <summary>録った間に一度でも 0 になった（不安定な）画素の揺れ幅の値。</summary>
+        public const ushort UnstableNoise = ushort.MaxValue;
+
         private readonly int width;
         private readonly int height;
         private readonly ushort[][] frames;
@@ -128,6 +131,25 @@ namespace BallGame
         }
 
         /// <summary>
+        /// 画素ごとの揺れ幅（mm、中央値からのずれの中央値×1.4826）を作ります。
+        /// 録った間に一度でも 0 になった画素は <see cref="UnstableNoise"/> にします。
+        /// </summary>
+        /// <returns>揺れ幅</returns>
+        public ushort[] BuildNoise()
+        {
+            int pixelCount = width * height;
+            ushort[] result = new ushort[pixelCount];
+            ushort[] samples = new ushort[recordedFrames];
+            int[] deviations = new int[recordedFrames];
+            for (int i = 0; i < pixelCount; i++)
+            {
+                result[i] = NoiseOfPixel(i, samples, deviations);
+            }
+
+            return result;
+        }
+
+        /// <summary>
         /// 全画素が 0 かどうかを返します。
         /// </summary>
         /// <param name="depth">深度</param>
@@ -143,6 +165,31 @@ namespace BallGame
             }
 
             return true;
+        }
+
+        private ushort NoiseOfPixel(int index, ushort[] samples, int[] deviations)
+        {
+            for (int f = 0; f < recordedFrames; f++)
+            {
+                ushort value = frames[f][index];
+                if (value == 0)
+                {
+                    return UnstableNoise;
+                }
+
+                samples[f] = value;
+            }
+
+            Array.Sort(samples, 0, recordedFrames);
+            int median = samples[recordedFrames / 2];
+            for (int f = 0; f < recordedFrames; f++)
+            {
+                deviations[f] = Math.Abs(samples[f] - median);
+            }
+
+            Array.Sort(deviations, 0, recordedFrames);
+            double sigma = deviations[recordedFrames / 2] * 1.4826;
+            return (ushort)Math.Min(UnstableNoise - 1, Math.Max(1, (int)Math.Ceiling(sigma)));
         }
 
         private ushort MedianOfPixel(int index, ushort[] samples)

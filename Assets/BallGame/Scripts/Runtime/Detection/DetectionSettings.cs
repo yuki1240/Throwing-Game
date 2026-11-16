@@ -8,6 +8,9 @@ namespace BallGame
         /// <summary>ノイズ床（mm）。これ未満はセンサーの揺れとして捨てる。</summary>
         public int NoiseFloorMm = CalibrationData.DefaultNoiseFloorMm;
 
+        /// <summary>画素ごとの揺れ幅の何倍までを揺れとみなすか。揺れる画素ほどしきい値が上がる。</summary>
+        public float NoiseSigmaMultiplier = 4f;
+
         /// <summary>壁からの距離の上限（mm）。これより遠いものは捨てる。</summary>
         public int MaxDistanceMm = CalibrationData.DefaultMaxDistanceMm;
 

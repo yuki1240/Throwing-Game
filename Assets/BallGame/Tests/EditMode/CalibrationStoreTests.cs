@@ -195,5 +195,42 @@ namespace BallGame.Tests
             Assert.That(data.Corners[0].x, Is.EqualTo(0.2f).Within(1e-5f));
             Assert.That(data.Corners[0].y, Is.EqualTo(0.15f).Within(1e-5f));
         }
+
+        [Test]
+        public void 基準を録ると画素ごとの揺れ幅も残り0になった画素は不安定になる()
+        {
+            BaselineRecorder recorder = new BaselineRecorder(2, 1, 3);
+            recorder.Begin();
+            recorder.AddFrame(new ushort[] { 1000, 0 });
+            recorder.AddFrame(new ushort[] { 1010, 2000 });
+            recorder.AddFrame(new ushort[] { 990, 2010 });
+
+            ushort[] noise = recorder.BuildNoise();
+
+            Assert.That(noise[0], Is.EqualTo(15));
+            Assert.That(noise[1], Is.EqualTo(BaselineRecorder.UnstableNoise));
+        }
+
+        [Test]
+        public void 揺れ幅も保存して読み戻せる()
+        {
+            CalibrationData original = CreateSample();
+            original.BaselineNoise = new ushort[] { 3, BaselineRecorder.UnstableNoise, 5, 6, 7, 8 };
+            original.SetNoiseFloorMm(60);
+            CalibrationData loaded = RoundTrip(original, false);
+
+            Assert.That(loaded.BaselineNoise, Is.EqualTo(original.BaselineNoise));
+            Assert.That(loaded.NoiseFloorMm, Is.EqualTo(60));
+            Assert.That(RoundTrip(original, true).BaselineNoise, Is.Null);
+        }
+
+        [Test]
+        public void ノイズ床は20から200mmに収まる()
+        {
+            CalibrationData data = new CalibrationData();
+
+            Assert.That(data.SetNoiseFloorMm(5), Is.EqualTo(20));
+            Assert.That(data.SetNoiseFloorMm(500), Is.EqualTo(200));
+        }
     }
 }

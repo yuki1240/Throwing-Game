@@ -36,6 +36,15 @@ namespace BallGame
         /// <summary>基準深度（mm、0 は無効）。未取得なら null。</summary>
         public ushort[] Baseline;
 
+        /// <summary>画素ごとの揺れ幅（mm）。古いデータでは null。不安定な画素は BaselineRecorder.UnstableNoise。</summary>
+        public ushort[] BaselineNoise;
+
+        /// <summary>ノイズ床の下限（mm）。</summary>
+        public const int MinNoiseFloorMm = 20;
+
+        /// <summary>ノイズ床の上限（mm）。</summary>
+        public const int MaxNoiseFloorMm = 200;
+
         /// <summary>壁からの距離の上限（mm）。これより遠いものは捨てる。</summary>
         public int MaxDistanceMm = DefaultMaxDistanceMm;
 
@@ -95,6 +104,7 @@ namespace BallGame
         public void ClearBaseline()
         {
             Baseline = null;
+            BaselineNoise = null;
             Width = 0;
             Height = 0;
         }
@@ -135,9 +145,11 @@ namespace BallGame
         /// <param name="baseline">基準深度</param>
         /// <param name="width">幅</param>
         /// <param name="height">高さ</param>
-        public void SetBaseline(ushort[] baseline, int width, int height)
+        /// <param name="noise">画素ごとの揺れ幅（無ければ null）</param>
+        public void SetBaseline(ushort[] baseline, int width, int height, ushort[] noise = null)
         {
             Baseline = baseline;
+            BaselineNoise = noise != null && baseline != null && noise.Length == baseline.Length ? noise : null;
             Width = width;
             Height = height;
         }
@@ -221,6 +233,17 @@ namespace BallGame
         }
 
         /// <summary>
+        /// ノイズ床（mm）を 20〜200 に収めて設定します。
+        /// </summary>
+        /// <param name="millimeters">mm</param>
+        /// <returns>実際に設定した値（mm）</returns>
+        public int SetNoiseFloorMm(int millimeters)
+        {
+            NoiseFloorMm = Mathf.Clamp(millimeters, MinNoiseFloorMm, MaxNoiseFloorMm);
+            return NoiseFloorMm;
+        }
+
+        /// <summary>
         /// 壁からの距離（cm）を返します。
         /// </summary>
         /// <returns>cm</returns>
@@ -256,6 +279,7 @@ namespace BallGame
             copy.Width = Width;
             copy.Height = Height;
             copy.Baseline = Baseline != null ? (ushort[])Baseline.Clone() : null;
+            copy.BaselineNoise = BaselineNoise != null ? (ushort[])BaselineNoise.Clone() : null;
             copy.MaxDistanceMm = MaxDistanceMm;
             copy.NoiseFloorMm = NoiseFloorMm;
             copy.MirrorX = MirrorX;
@@ -292,6 +316,10 @@ namespace BallGame
             if (HasBaseline)
             {
                 DepthMirror.MirrorX(Baseline, Width, Height);
+                if (BaselineNoise != null)
+                {
+                    DepthMirror.MirrorX(BaselineNoise, Width, Height);
+                }
             }
         }
     }

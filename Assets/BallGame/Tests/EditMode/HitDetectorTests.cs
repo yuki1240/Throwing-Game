@@ -221,5 +221,47 @@ namespace BallGame.Tests
             Assert.That(result.Hits[0].ImageUv.x, Is.EqualTo(0.5f).Within(0.02f));
             Assert.That(result.Hits[0].ImageUv.y, Is.EqualTo(0.3f).Within(0.02f));
         }
+
+        [Test]
+        public void 揺れの大きい画素ではしきい値が上がり小さな変化を拾わない()
+        {
+            CalibrationData data = scene.CreateCalibration();
+            ushort[] noise = new ushort[data.Baseline.Length];
+            for (int i = 0; i < noise.Length; i++)
+            {
+                noise[i] = 40;
+            }
+
+            data.SetBaseline(data.Baseline, data.Width, data.Height, noise);
+            HitDetector strict = new HitDetector(new DetectionSettings());
+            Assert.That(strict.Configure(data), Is.True);
+            int index = 100 * scene.Width + 160;
+            Assert.That(strict.GetNoiseThreshold(index), Is.GreaterThan(45f));
+
+            ushort[] frame = scene.EmptyFrame();
+            scene.DrawDisc(frame, 160f, 100f, 4.5f, 60f);
+            Assert.That(detector.Process(frame, 0f).Hits.Count, Is.EqualTo(1), "揺れ幅が無ければ拾う");
+            Assert.That(strict.Process(frame, 0f).Hits, Is.Empty, "揺れる画素では拾わない");
+        }
+
+        [Test]
+        public void 基準を録る間に0になった画素は深度0でも候補にしない()
+        {
+            CalibrationData data = scene.CreateCalibration();
+            ushort[] noise = new ushort[data.Baseline.Length];
+            for (int i = 0; i < noise.Length; i++)
+            {
+                noise[i] = BaselineRecorder.UnstableNoise;
+            }
+
+            data.SetBaseline(data.Baseline, data.Width, data.Height, noise);
+            HitDetector strict = new HitDetector(new DetectionSettings());
+            Assert.That(strict.Configure(data), Is.True);
+            ushort[] frame = scene.EmptyFrame();
+            scene.DrawDisc(frame, 160f, 120f, 4.5f, -1f);
+
+            Assert.That(strict.Process(frame, 0f).Hits, Is.Empty);
+            Assert.That(strict.Process(frame, 0f).ChangedPixelCount, Is.EqualTo(0));
+        }
     }
 }

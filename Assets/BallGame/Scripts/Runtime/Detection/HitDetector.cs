@@ -28,6 +28,8 @@ namespace BallGame
         private bool[] insideMask;
         private float[] normalDotRay;
         private float[] baselineDistance;
+        private float[] pixelNoiseDistance;
+        private bool[] unstablePixel;
         private bool[] candidate;
         private bool[] filtered;
         private bool[] visited;
@@ -103,6 +105,7 @@ namespace BallGame
 
             insideMask = QuadMask.Build(data.Corners, width, height);
             BuildDistanceTables(intrinsics);
+            BuildNoiseTables(data.BaselineNoise);
             isConfigured = true;
             return true;
         }
@@ -183,6 +186,8 @@ namespace BallGame
             int count = width * height;
             normalDotRay = new float[count];
             baselineDistance = new float[count];
+            pixelNoiseDistance = new float[count];
+            unstablePixel = new bool[count];
             candidate = new bool[count];
             filtered = new bool[count];
             visited = new bool[count];
@@ -201,6 +206,26 @@ namespace BallGame
             }
         }
 
+        private void BuildNoiseTables(ushort[] noise)
+        {
+            for (int i = 0; i < pixelNoiseDistance.Length; i++)
+            {
+                bool hasNoise = noise != null;
+                unstablePixel[i] = hasNoise && noise[i] == BaselineRecorder.UnstableNoise;
+                pixelNoiseDistance[i] = hasNoise && !unstablePixel[i] ? Mathf.Abs(normalDotRay[i]) * noise[i] : 0f;
+            }
+        }
+
+        /// <summary>
+        /// 画素ごとのしきい値（mm）を返します。ノイズ床と、その画素の揺れ幅×倍率の大きい方です。
+        /// </summary>
+        /// <param name="index">画素の番号</param>
+        /// <returns>しきい値（mm）</returns>
+        public float GetNoiseThreshold(int index)
+        {
+            return Mathf.Max(settings.NoiseFloorMm, pixelNoiseDistance[index] * settings.NoiseSigmaMultiplier);
+        }
+
         private void ClassifyPixels(ushort[] depth)
         {
             int changed = 0;
@@ -216,13 +241,18 @@ namespace BallGame
                 if (current == 0)
                 {
                     // 基準があった画素が 0 になった：赤外線が返らない物体として候補にする
-                    candidate[i] = true;
-                    changed++;
+                    // （基準を録る間に 0 になったことがある不安定な画素は、揺れとみなして使わない）
+                    if (!unstablePixel[i])
+                    {
+                        candidate[i] = true;
+                        changed++;
+                    }
+
                     continue;
                 }
 
                 float distance = GetDistanceFromWall(i, current);
-                if (distance < settings.NoiseFloorMm)
+                if (distance < GetNoiseThreshold(i))
                 {
                     continue;
                 }

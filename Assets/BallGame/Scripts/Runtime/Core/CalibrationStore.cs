@@ -7,7 +7,7 @@ namespace BallGame
 {
     /// <summary>
     /// 校正データを Application.persistentDataPath のバイナリへ保存・読込します。
-    /// 形式：見出し → 版 → 四隅 → 基準深度 → しきい値 → 左右反転 → （末尾）入力源 → 設置向き。
+    /// 形式：見出し → 版 → 四隅 → 基準深度 → しきい値 → 左右反転 → （末尾）入力源 → 設置向き → 画素ごとの揺れ幅。
     /// 末尾の項目が無い古いファイルも読めます（無い項目は初期値）。
     /// </summary>
     public static class CalibrationStore
@@ -16,7 +16,7 @@ namespace BallGame
         public const string Magic = "BGCAL";
 
         /// <summary>現在の版。</summary>
-        public const int CurrentVersion = 2;
+        public const int CurrentVersion = 3;
 
         /// <summary>ファイル名。</summary>
         public const string FileName = "ballgame_calibration.bin";
@@ -170,6 +170,33 @@ namespace BallGame
         {
             writer.Write((int)data.InputSource);
             writer.Write((int)data.Mount);
+            WriteNoise(writer, data);
+        }
+
+        private static void WriteNoise(BinaryWriter writer, CalibrationData data)
+        {
+            bool hasNoise = data.HasBaseline && data.BaselineNoise != null;
+            writer.Write(hasNoise ? data.BaselineNoise.Length : 0);
+            if (hasNoise)
+            {
+                byte[] bytes = new byte[data.BaselineNoise.Length * sizeof(ushort)];
+                Buffer.BlockCopy(data.BaselineNoise, 0, bytes, 0, bytes.Length);
+                writer.Write(bytes);
+            }
+        }
+
+        private static void ReadNoise(BinaryReader reader, CalibrationData data)
+        {
+            int count = reader.ReadInt32();
+            if (count <= 0 || !data.HasBaseline || count != data.Baseline.Length || !HasMore(reader, count * sizeof(ushort)))
+            {
+                return;
+            }
+
+            byte[] bytes = reader.ReadBytes(count * sizeof(ushort));
+            ushort[] noise = new ushort[count];
+            Buffer.BlockCopy(bytes, 0, noise, 0, bytes.Length);
+            data.BaselineNoise = noise;
         }
 
         private static void WriteCorners(BinaryWriter writer, CalibrationData data)
@@ -224,6 +251,11 @@ namespace BallGame
             if (HasMore(reader, sizeof(int)))
             {
                 data.Mount = ToEnum(reader.ReadInt32(), MountOrientation.Side);
+            }
+
+            if (HasMore(reader, sizeof(int)))
+            {
+                ReadNoise(reader, data);
             }
         }
 

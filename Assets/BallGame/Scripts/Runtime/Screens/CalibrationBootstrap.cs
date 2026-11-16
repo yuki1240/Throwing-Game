@@ -49,6 +49,7 @@ namespace BallGame
         private Button resetButton;
         private Button gameButton;
         private Text distanceText;
+        private Text noiseFloorText;
         private Text guideText;
         private Text statusText;
         private float resetRequestedAt = float.NegativeInfinity;
@@ -157,8 +158,9 @@ namespace BallGame
             AddLabel(p, "3. 人がいない状態で基準を録る", 360f);
             recordButton = AddButton(p, "基準を録る（30フレーム）", 20f, 410f, 660f, OnRecordPressed);
             BuildDistanceRow(p, 490f);
-            guideText = UiFactory.CreateText(p, string.Empty, 26, TextAnchor.UpperLeft);
-            UiFactory.PlaceTopLeft(guideText.rectTransform, 20f, 560f, 660f, 170f);
+            BuildNoiseRow(p, 560f);
+            guideText = UiFactory.CreateText(p, string.Empty, 24, TextAnchor.UpperLeft);
+            UiFactory.PlaceTopLeft(guideText.rectTransform, 20f, 632f, 660f, 104f);
             resetButton = AddButton(p, "リセット（すべて消す）", 20f, 740f, 320f, OnResetPressed);
             gameButton = AddButton(p, "4. ゲームへ", 360f, 740f, 320f, OnGamePressed);
             statusText = UiFactory.CreateText(p, string.Empty, 22, TextAnchor.UpperLeft);
@@ -173,6 +175,16 @@ namespace BallGame
             distanceText = UiFactory.CreateText(parent, string.Empty, 30, TextAnchor.MiddleCenter);
             UiFactory.PlaceTopLeft(distanceText.rectTransform, 350f, y, 140f, 60f);
             AddButton(parent, "＋", 500f, y, 90f, () => ChangeDistance(1));
+        }
+
+        private void BuildNoiseRow(Transform parent, float y)
+        {
+            Text label = UiFactory.CreateText(parent, "ノイズ床（大きいほど厳しい）", 22, TextAnchor.MiddleLeft);
+            UiFactory.PlaceTopLeft(label.rectTransform, 20f, y, 230f, 60f);
+            AddButton(parent, "－", 250f, y, 90f, () => ChangeNoiseFloor(-5));
+            noiseFloorText = UiFactory.CreateText(parent, string.Empty, 30, TextAnchor.MiddleCenter);
+            UiFactory.PlaceTopLeft(noiseFloorText.rectTransform, 350f, y, 140f, 60f);
+            AddButton(parent, "＋", 500f, y, 90f, () => ChangeNoiseFloor(5));
         }
 
         private static void AddLabel(Transform parent, string content, float y)
@@ -333,6 +345,11 @@ namespace BallGame
             }
         }
 
+        private void ChangeNoiseFloor(int deltaMm)
+        {
+            session.SetNoiseFloorMm(session.Data.NoiseFloorMm + deltaMm);
+        }
+
         private void ChangeDistance(int deltaCm)
         {
             session.SetMaxDistanceCm(session.Data.GetMaxDistanceCm() + deltaCm);
@@ -363,7 +380,7 @@ namespace BallGame
             recorder.AddFrame(session.LatestDepth);
             if (recorder.IsComplete)
             {
-                session.SetBaseline(recorder.BuildMedian(), recorder.Width, recorder.Height);
+                session.SetBaseline(recorder.BuildMedian(), recorder.Width, recorder.Height, recorder.BuildNoise());
             }
         }
 
@@ -476,6 +493,7 @@ namespace BallGame
             UiFactory.SetButtonLabel(resetButton, IsWaitingResetConfirm() ? "もう一度押すとリセット" : "リセット（すべて消す）");
             gameButton.interactable = CanStartGame();
             distanceText.text = data.GetMaxDistanceCm() + "cm";
+            noiseFloorText.text = data.NoiseFloorMm + "mm";
         }
 
         private string GetRecordLabel()

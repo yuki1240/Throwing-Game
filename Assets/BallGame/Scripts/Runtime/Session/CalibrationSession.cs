@@ -239,6 +239,24 @@ namespace BallGame
         }
 
         /// <summary>
+        /// ノイズ床（mm、20〜200）を変えます。大きいほど揺れに強く、小さい物に鈍くなります。
+        /// </summary>
+        /// <param name="millimeters">mm</param>
+        /// <returns>実際に設定した mm</returns>
+        public int SetNoiseFloorMm(int millimeters)
+        {
+            int applied = Data.SetNoiseFloorMm(millimeters);
+            if (simulatorCalibration != null)
+            {
+                simulatorCalibration.NoiseFloorMm = applied;
+            }
+
+            Detector.Settings.NoiseFloorMm = applied;
+            Save();
+            return applied;
+        }
+
+        /// <summary>
         /// 四隅を1つ置きます（左上・右上・右下・左下の順）。
         /// </summary>
         /// <param name="imageUv">深度画像上の 0〜1（上端が 0）</param>
@@ -297,9 +315,10 @@ namespace BallGame
         /// <param name="baseline">基準深度</param>
         /// <param name="width">幅</param>
         /// <param name="height">高さ</param>
-        public void SetBaseline(ushort[] baseline, int width, int height)
+        /// <param name="noise">画素ごとの揺れ幅（無ければ null）</param>
+        public void SetBaseline(ushort[] baseline, int width, int height, ushort[] noise)
         {
-            Data.SetBaseline(baseline, width, height);
+            Data.SetBaseline(baseline, width, height, noise);
             ApplyCalibrationChange();
         }
 
@@ -551,7 +570,7 @@ namespace BallGame
 
             CalibrationData calibration = new CalibrationData();
             AddInsetCorners(calibration);
-            calibration.SetBaseline(recorder.BuildMedian(), generator.Width, generator.Height);
+            calibration.SetBaseline(recorder.BuildMedian(), generator.Width, generator.Height, recorder.BuildNoise());
             calibration.MaxDistanceMm = data.MaxDistanceMm;
             calibration.NoiseFloorMm = data.NoiseFloorMm;
             calibration.Mount = data.Mount;
