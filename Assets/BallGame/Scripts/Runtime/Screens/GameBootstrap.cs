@@ -10,11 +10,16 @@ namespace BallGame
     /// Game シーンの起動用オブジェクト。実行時に 1920×1080 の Canvas でゲーム画面を組み立てます。
     /// 四隅で囲った範囲を背景全体へ引き伸ばし、当たった位置に花か演出を出します。
     /// スペースキーで上部の操作・HIT 表示・校正へ戻るボタン・壁からの距離をまとめて隠します。
+    /// ボールが10回当たると、または10分たつと、10秒のカウントダウンのあと次の場面（クリスマス）へ移ります。
+    /// 10分の最後の1分に当たったときは、さらに1分待ちます。
     /// </summary>
     public sealed class GameBootstrap : MonoBehaviour
     {
         /// <summary>Calibration シーンの名前。</summary>
         public const string CalibrationSceneName = "Calibration";
+
+        /// <summary>次の場面（クリスマス）のシーン名。</summary>
+        public const string NextSceneName = "Christmas";
 
         /// <summary>切替間隔の1回の増減（秒）。</summary>
         public const float IntervalStepSeconds = 60f;
@@ -45,6 +50,12 @@ namespace BallGame
         private Text messageText;
         private Button randomButton;
         private Button fixedButton;
+        private readonly ChristmasFlow flow = new ChristmasFlow();
+        private readonly SceneTimer timer = new SceneTimer();
+        private Text celebrationText;
+        private Text countdownTitleText;
+        private Text countdownNumberText;
+        private bool sceneRequested;
         private int hitCount;
         private string lastHitDescription = "まだ当たっていません";
 
@@ -75,7 +86,31 @@ namespace BallGame
             }
 
             ProcessHits();
+            flow.Tick(Time.deltaTime);
+            TickTimer();
             RefreshTexts();
+            GoToNextSceneWhenFinished();
+        }
+
+        private void TickTimer()
+        {
+            // 遊んでいる間だけ時間を数える（10球そろったあとは別のカウントダウンが進む）
+            if (flow.Phase == ChristmasPhase.Playing)
+            {
+                timer.Tick(Time.unscaledDeltaTime);
+            }
+        }
+
+        private void GoToNextSceneWhenFinished()
+        {
+            bool timeUp = flow.Phase == ChristmasPhase.Playing && timer.IsExpired;
+            if ((flow.Phase != ChristmasPhase.Finished && !timeUp) || sceneRequested)
+            {
+                return;
+            }
+
+            sceneRequested = true;
+            SceneManager.LoadScene(NextSceneName);
         }
 
         private void EnsureSettings()
@@ -114,6 +149,15 @@ namespace BallGame
             BuildTopBar(overlay.transform);
             BuildHitPanel(overlay.transform);
             BuildMessage(canvas.transform);
+            BuildKidsTexts(canvas.transform);
+        }
+
+        private void BuildKidsTexts(Transform parent)
+        {
+            Color gold = new Color(1f, 0.92f, 0.35f, 1f);
+            celebrationText = UiFactory.PlaceKidsText(parent, "おはなが いっぱい！", 120, gold, new Vector2(960f, 600f), new Vector2(1900f, 200f));
+            countdownTitleText = UiFactory.PlaceKidsText(parent, "つぎは クリスマス！", 80, Color.white, new Vector2(960f, 760f), new Vector2(1600f, 140f));
+            countdownNumberText = UiFactory.PlaceKidsText(parent, string.Empty, 340, gold, new Vector2(960f, 440f), new Vector2(600f, 420f));
         }
 
         private void BuildBackground(Transform parent)
@@ -247,7 +291,20 @@ namespace BallGame
             BackgroundTheme theme = settings.FindTheme(GetCurrentBackgroundName(), rotation.CurrentIndex);
             RectTransform placed = SpawnReaction(reaction, theme, wallUv, out string reactionName);
             hitCount++;
+            RegisterForSceneChange();
             LogHit(hit, wallUv, placed, reactionName);
+        }
+
+        private void RegisterForSceneChange()
+        {
+            if (flow.Phase != ChristmasPhase.Playing)
+            {
+                return;
+            }
+
+            // 最後の1分に当たったときは、場面を替える時間が1分延びる。10球目で完成にする（1秒に1個まで数える）
+            timer.NotifyHit();
+            flow.RegisterHit(Time.time);
         }
 
         private RectTransform SpawnReaction(HitReactionKind reaction, BackgroundTheme theme, Vector2 wallUv, out string reactionName)
@@ -361,6 +418,23 @@ namespace BallGame
             distanceText.text = session.Data.GetMaxDistanceCm() + "cm";
             hitText.text = BuildHitText();
             RefreshMessage();
+            RefreshKidsTexts();
+        }
+
+        private void RefreshKidsTexts()
+        {
+            ChristmasPhase phase = flow.Phase;
+            celebrationText.gameObject.SetActive(phase == ChristmasPhase.Celebrating);
+            celebrationText.rectTransform.localScale = Vector3.one * (1f + 0.06f * Mathf.Sin(Time.time * 5f));
+
+            // 10球そろったあとのカウントダウン、または10分たつ前の最後の10秒のカウントダウン
+            int number = phase == ChristmasPhase.Countdown ? flow.GetCountdownNumber() : timer.GetCountdownNumber();
+            bool countdown = number > 0;
+            countdownTitleText.gameObject.SetActive(countdown);
+            countdownNumberText.gameObject.SetActive(countdown);
+            countdownNumberText.text = number.ToString();
+            float withinSecond = phase == ChristmasPhase.Countdown ? flow.GetPhaseElapsed() % 1f : Mathf.Clamp01(number - timer.RemainingSeconds);
+            countdownNumberText.rectTransform.localScale = Vector3.one * Mathf.Lerp(1.5f, 1f, Mathf.Clamp01(withinSecond * 4f));
         }
 
         private string BuildHitText()
@@ -378,7 +452,8 @@ namespace BallGame
 
             string clickHint = session.IsSimulated ? "\n模擬深度：画面をクリックするとボールが当たります" : string.Empty;
             string blob = result != null ? "\n" + result.DescribeLargestBlob() : string.Empty;
-            return "HIT " + hitCount + state + "\n最後：" + lastHitDescription + blob + clickHint;
+            string sceneChange = "　クリスマスへ：あと" + flow.Remaining + "球 / " + timer.FormatRemaining();
+            return "HIT " + hitCount + sceneChange + state + "\n最後：" + lastHitDescription + blob + clickHint;
         }
 
         private void RefreshMessage()

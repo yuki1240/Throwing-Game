@@ -12,6 +12,7 @@ namespace BallGame
     /// （いろいろな色のボールと赤い電球）を1つずつ付け、10回目にてっぺんの星が付いて完成します。
     /// 完成したら「クリスマスツリーの完成～！」ときらきらを出し、10秒のカウントダウンのあと次の場面（草原）へ移ります。
     /// 当たりは1秒に1個まで数えます。
+    /// 10球そろわなくても、10分たつと草原へ移ります（最後の1分に当たったときは、さらに1分待ちます）。
     /// 遊ぶのは幼稚園の子どもなので、文字は大きく、ひらがなを多くしています。
     /// 3D の部屋（Polyart の PolyartChristmasScene）が入っていれば、その部屋の 3D のツリーを飾ります。
     /// 入っていないときは、これまでの 2D の絵のツリーで遊べます。
@@ -49,6 +50,7 @@ namespace BallGame
         private readonly List<Image> bulbBodies = new List<Image>();
         private readonly System.Random random = new System.Random();
         private readonly ChristmasFlow flow = new ChristmasFlow();
+        private readonly SceneTimer timer = new SceneTimer();
         private CalibrationSession session;
         private List<Vector2> slots;
         private int[] slotOrder;
@@ -156,6 +158,7 @@ namespace BallGame
             HandleKeyboard();
             HandleHits();
             flow.Tick(Time.deltaTime);
+            TickTimer();
             AnimateCelebration();
             RefreshTexts();
             GoToNextSceneWhenFinished();
@@ -266,23 +269,11 @@ namespace BallGame
 
         private void BuildKidsTexts(Transform parent)
         {
-            instructionText = PlaceKidsText(parent, "ボールを かべに あてて ツリーを かざろう！", 58, Color.white, new Vector2(960f, 1015f), new Vector2(1800f, 90f));
-            counterText = PlaceKidsText(parent, string.Empty, 110, GoldText, new Vector2(330f, 640f), new Vector2(560f, 300f));
-            celebrationText = PlaceKidsText(parent, "クリスマスツリーの完成～！", 120, GoldText, new Vector2(960f, 520f), new Vector2(1900f, 200f));
-            countdownTitleText = PlaceKidsText(parent, "つぎは おはなばたけ！", 80, Color.white, new Vector2(960f, 760f), new Vector2(1600f, 140f));
-            countdownNumberText = PlaceKidsText(parent, string.Empty, 340, GoldText, new Vector2(960f, 440f), new Vector2(600f, 420f));
-        }
-
-        private static Text PlaceKidsText(Transform parent, string content, int fontSize, Color color, Vector2 center, Vector2 size)
-        {
-            Text text = UiFactory.CreateKidsText(parent, content, fontSize, color);
-            RectTransform rect = text.rectTransform;
-            rect.anchorMin = Vector2.zero;
-            rect.anchorMax = Vector2.zero;
-            rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.anchoredPosition = center;
-            rect.sizeDelta = size;
-            return text;
+            instructionText = UiFactory.PlaceKidsText(parent, "ボールを かべに あてて ツリーを かざろう！", 58, Color.white, new Vector2(960f, 1015f), new Vector2(1800f, 90f));
+            counterText = UiFactory.PlaceKidsText(parent, string.Empty, 110, GoldText, new Vector2(330f, 640f), new Vector2(560f, 300f));
+            celebrationText = UiFactory.PlaceKidsText(parent, "クリスマスツリーの完成～！", 120, GoldText, new Vector2(960f, 520f), new Vector2(1900f, 200f));
+            countdownTitleText = UiFactory.PlaceKidsText(parent, "つぎは おはなばたけ！", 80, Color.white, new Vector2(960f, 760f), new Vector2(1600f, 140f));
+            countdownNumberText = UiFactory.PlaceKidsText(parent, string.Empty, 340, GoldText, new Vector2(960f, 440f), new Vector2(600f, 420f));
         }
 
         private void BuildOperatorOverlay(Transform parent)
@@ -327,6 +318,12 @@ namespace BallGame
 
         private void OnWallHit(Vector2 wallUv)
         {
+            if (flow.Phase == ChristmasPhase.Playing)
+            {
+                // 最後の1分に当たったときは、場面を替える時間が1分延びる
+                timer.NotifyHit();
+            }
+
             // 当たったことは毎回エフェクトで知らせる。
             // 飾りが付くのは、前に数えてから1秒以上たった当たりだけ（1秒以内の当たりはエフェクトのみ）
             spawner.SpawnEffect(EffectKind.FlashParticles, wallUv);
@@ -477,6 +474,15 @@ namespace BallGame
             return new Rect(xMin, yMin, 900f / size.x, (ChristmasTreeLayout.ApexY - ChristmasTreeLayout.BaseY + 100f) / size.y);
         }
 
+        private void TickTimer()
+        {
+            // 飾り付け中だけ時間を数える（完成の演出とカウントダウンは別に進む）
+            if (flow.Phase == ChristmasPhase.Playing)
+            {
+                timer.Tick(Time.unscaledDeltaTime);
+            }
+        }
+
         private void RefreshTexts()
         {
             ChristmasPhase phase = flow.Phase;
@@ -486,12 +492,20 @@ namespace BallGame
             counterText.text = "あと\n" + flow.Remaining + "こ！";
             celebrationText.gameObject.SetActive(phase == ChristmasPhase.Celebrating);
             celebrationText.rectTransform.localScale = Vector3.one * (1f + 0.06f * Mathf.Sin(Time.time * 5f));
-            bool countdown = phase == ChristmasPhase.Countdown;
+            // 10球そろったあとのカウントダウン、または10分たつ前の最後の10秒のカウントダウン
+            int countdownNumber = phase == ChristmasPhase.Countdown ? flow.GetCountdownNumber() : timer.GetCountdownNumber();
+            bool countdown = countdownNumber > 0;
             countdownTitleText.gameObject.SetActive(countdown);
             countdownNumberText.gameObject.SetActive(countdown);
-            countdownNumberText.text = flow.GetCountdownNumber().ToString();
-            countdownNumberText.rectTransform.localScale = Vector3.one * GetCountdownPop();
+            countdownNumberText.text = countdownNumber.ToString();
+            countdownNumberText.rectTransform.localScale = Vector3.one * (phase == ChristmasPhase.Countdown ? GetCountdownPop() : GetTimerCountdownPop(countdownNumber));
             operatorText.text = BuildOperatorText();
+        }
+
+        private float GetTimerCountdownPop(int number)
+        {
+            float withinSecond = Mathf.Clamp01(number - timer.RemainingSeconds);
+            return Mathf.Lerp(1.5f, 1f, Mathf.Clamp01(withinSecond * 4f));
         }
 
         private float GetCountdownPop()
@@ -507,7 +521,7 @@ namespace BallGame
             string state = result != null && result.PersonDetected ? "（人を検知中）" : string.Empty;
             string click = (session.IsSimulated ? "\n模擬深度：画面をクリックするとボールが当たります" : string.Empty) + "\nＴキー：テスト用に1球当たったことにする";
             string mode = tree3D != null ? "3D" : environmentReady ? "2D" : "3D 読み込み中";
-            return "クリスマス（" + mode + "）　飾り " + flow.HitCount + " / " + flow.Goal + state + "\n" + blob + click;
+            return "クリスマス（" + mode + "）　飾り " + flow.HitCount + " / " + flow.Goal + "　場面が替わるまで " + timer.FormatRemaining() + state + "\n" + blob + click;
         }
 
         private void OnSkyPressed(Vector2 wallUv)
@@ -523,7 +537,8 @@ namespace BallGame
 
         private void GoToNextSceneWhenFinished()
         {
-            if (flow.Phase != ChristmasPhase.Finished || sceneRequested)
+            bool timeUp = flow.Phase == ChristmasPhase.Playing && timer.IsExpired;
+            if ((flow.Phase != ChristmasPhase.Finished && !timeUp) || sceneRequested)
             {
                 return;
             }

@@ -84,6 +84,28 @@ namespace BallGame
         }
 
         /// <summary>
+        /// 子ども向けの大きな文字を、画面の左下を基準にした位置に置きます。
+        /// </summary>
+        /// <param name="parent">親</param>
+        /// <param name="content">文字</param>
+        /// <param name="fontSize">大きさ</param>
+        /// <param name="color">文字の色</param>
+        /// <param name="center">文字の中心の位置（1920×1080 の左下が原点）</param>
+        /// <param name="size">文字を置く枠の大きさ</param>
+        /// <returns>Text</returns>
+        public static Text PlaceKidsText(Transform parent, string content, int fontSize, Color color, Vector2 center, Vector2 size)
+        {
+            Text text = CreateKidsText(parent, content, fontSize, color);
+            RectTransform rect = text.rectTransform;
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.zero;
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = center;
+            rect.sizeDelta = size;
+            return text;
+        }
+
+        /// <summary>
         /// 1920×1080 基準の Canvas を作ります。
         /// </summary>
         /// <param name="name">名前</param>
