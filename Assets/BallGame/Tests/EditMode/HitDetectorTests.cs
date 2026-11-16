@@ -314,5 +314,37 @@ namespace BallGame.Tests
                 Assert.That(detector.Process(frame, f * 0.033f).Hits, Is.Empty);
             }
         }
+
+        [Test]
+        public void 揺れが大きくてもしきい値はノイズ床の2倍で止まる()
+        {
+            CalibrationData data = scene.CreateCalibration();
+            ushort[] noise = new ushort[data.Baseline.Length];
+            for (int i = 0; i < noise.Length; i++)
+            {
+                noise[i] = 500;
+            }
+
+            data.SetBaseline(data.Baseline, data.Width, data.Height, noise);
+            HitDetector noisy = new HitDetector(new DetectionSettings());
+            Assert.That(noisy.Configure(data), Is.True);
+
+            Assert.That(noisy.GetNoiseThreshold(100 * scene.Width + 160), Is.EqualTo(90f).Within(0.01f));
+            ushort[] frame = scene.EmptyFrame();
+            scene.DrawDisc(frame, 160f, 100f, 4.5f, 120f);
+            Assert.That(noisy.Process(frame, 0f).Hits.Count, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void 採用しない理由を画面用に説明できる()
+        {
+            ushort[] frame = scene.EmptyFrame();
+            scene.DrawDisc(frame, 160f, 100f, 4.5f, 70f);
+            DetectionResult result = detector.Process(frame, 0f);
+
+            Assert.That(result.HasLargestBlob, Is.True);
+            Assert.That(result.LargestBlobRejectReason, Is.EqualTo(string.Empty));
+            Assert.That(detector.Process(scene.EmptyFrame(), 1f).DescribeLargestBlob(), Is.EqualTo("塊なし"));
+        }
     }
 }

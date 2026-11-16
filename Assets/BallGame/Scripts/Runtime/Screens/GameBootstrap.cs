@@ -180,9 +180,9 @@ namespace BallGame
             rect.anchorMax = Vector2.zero;
             rect.pivot = Vector2.zero;
             rect.anchoredPosition = new Vector2(20f, 20f);
-            rect.sizeDelta = new Vector2(900f, 150f);
+            rect.sizeDelta = new Vector2(1100f, 190f);
             hitText = UiFactory.CreateText(panel.transform, string.Empty, 26, TextAnchor.UpperLeft);
-            UiFactory.PlaceTopLeft(hitText.rectTransform, 16f, 10f, 870f, 130f);
+            UiFactory.PlaceTopLeft(hitText.rectTransform, 16f, 10f, 1070f, 170f);
         }
 
         private void BuildMessage(Transform parent)
@@ -358,7 +358,8 @@ namespace BallGame
             }
 
             string clickHint = session.IsSimulated ? "\n模擬深度：画面をクリックするとボールが当たります" : string.Empty;
-            return "HIT " + hitCount + state + "\n最後：" + lastHitDescription + clickHint;
+            string blob = result != null ? "\n" + result.DescribeLargestBlob() : string.Empty;
+            return "HIT " + hitCount + state + "\n最後：" + lastHitDescription + blob + clickHint;
         }
 
         private void RefreshMessage()

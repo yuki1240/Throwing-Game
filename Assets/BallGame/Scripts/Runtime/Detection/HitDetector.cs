@@ -140,6 +140,7 @@ namespace BallGame
             ClassifyPixels(depth);
             RemoveIsolatedPixels();
             ExtractBlobs();
+            RecordLargestBlob();
             result.CandidateMask = visited;
             if (IsPersonFrame())
             {
@@ -227,7 +228,8 @@ namespace BallGame
         /// <returns>しきい値（mm）</returns>
         public float GetNoiseThreshold(int index)
         {
-            return Mathf.Max(settings.NoiseFloorMm, pixelNoiseDistance[index] * settings.NoiseSigmaMultiplier);
+            float byNoise = Mathf.Min(pixelNoiseDistance[index] * settings.NoiseSigmaMultiplier, settings.NoiseFloorMm * settings.MaxNoiseFloorScale);
+            return Mathf.Max(settings.NoiseFloorMm, byNoise);
         }
 
         private void ClassifyPixels(ushort[] depth)
@@ -378,6 +380,21 @@ namespace BallGame
             }
         }
 
+        private void RecordLargestBlob()
+        {
+            result.HasLargestBlob = false;
+            foreach (DepthBlob blob in result.Blobs)
+            {
+                if (!result.HasLargestBlob || blob.Area > result.LargestBlob.Area)
+                {
+                    result.LargestBlob = blob;
+                    result.HasLargestBlob = true;
+                }
+            }
+
+            result.LargestBlobRejectReason = result.HasLargestBlob ? GetRejectReason(result.LargestBlob) : string.Empty;
+        }
+
         private bool IsPersonFrame()
         {
             if (result.ChangedPixelCount > settings.PersonPixelTotal)
@@ -425,15 +442,38 @@ namespace BallGame
         }
 
         /// <summary>
+        /// 塊を採用しない理由を返します。採用できるときは空文字です。
+        /// </summary>
+        /// <param name="blob">塊</param>
+        /// <returns>理由（採用できるときは空文字）</returns>
+        public string GetRejectReason(DepthBlob blob)
+        {
+            if (blob.Area < settings.MinArea)
+            {
+                return "小さすぎる";
+            }
+
+            if (blob.PeakStrength < settings.MinPeakStrength)
+            {
+                return "壁からの離れ方が弱い";
+            }
+
+            if (blob.FillRatio < settings.MinFillRatio)
+            {
+                return "まばら";
+            }
+
+            return string.Empty;
+        }
+
+        /// <summary>
         /// 塊がボールらしいか（面積・一番強い点・詰まり具合）を返します。
         /// </summary>
         /// <param name="blob">塊</param>
         /// <returns>ボールらしければ true</returns>
         public bool IsBallLike(DepthBlob blob)
         {
-            return blob.Area >= settings.MinArea
-                && blob.PeakStrength >= settings.MinPeakStrength
-                && blob.FillRatio >= settings.MinFillRatio;
+            return GetRejectReason(blob).Length == 0;
         }
 
         private Track MatchOrCreateTrack(DepthBlob blob)

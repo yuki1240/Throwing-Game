@@ -9,7 +9,10 @@ namespace BallGame
         public int NoiseFloorMm = CalibrationData.DefaultNoiseFloorMm;
 
         /// <summary>画素ごとの揺れ幅の何倍までを揺れとみなすか。揺れる画素ほどしきい値が上がる。</summary>
-        public float NoiseSigmaMultiplier = 4f;
+        public float NoiseSigmaMultiplier = 3f;
+
+        /// <summary>揺れ幅で上げるしきい値の上限（ノイズ床の何倍まで）。揺れの大きい画素でもボールを拾えるようにする。</summary>
+        public float MaxNoiseFloorScale = 2f;
 
         /// <summary>壁からの距離の上限（mm）。これより遠いものは捨てる。</summary>
         public int MaxDistanceMm = CalibrationData.DefaultMaxDistanceMm;
@@ -21,13 +24,13 @@ namespace BallGame
         public int InstantArea = 24;
 
         /// <summary>芯につながっていれば、しきい値のこの割合の弱い変化でも塊に含める（ボールの縁を拾うため）。</summary>
-        public float WeakRatio = 0.6f;
+        public float WeakRatio = 0.5f;
 
         /// <summary>塊の中で一番強い点が、しきい値のこの倍率以上ないと採用しない（ノイズを捨てるため）。</summary>
-        public float MinPeakStrength = 1.3f;
+        public float MinPeakStrength = 1.15f;
 
         /// <summary>塊が縦横の箱のこの割合以上を埋めていないと採用しない（まばらなノイズを捨てるため）。</summary>
-        public float MinFillRatio = 0.3f;
+        public float MinFillRatio = 0.2f;
 
         /// <summary>深度 0 になった画素の強さ（しきい値の何倍とみなすか）。</summary>
         public float ZeroDepthStrength = 2f;

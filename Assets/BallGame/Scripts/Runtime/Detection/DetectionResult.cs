@@ -86,6 +86,15 @@ namespace BallGame
         /// <summary>変化画素の合計（壁からの距離の上限に関係なく数える）。</summary>
         public int ChangedPixelCount;
 
+        /// <summary>このフレームで一番大きい塊があるか。</summary>
+        public bool HasLargestBlob;
+
+        /// <summary>このフレームで一番大きい塊（調整用の表示に使う）。</summary>
+        public DepthBlob LargestBlob;
+
+        /// <summary>一番大きい塊を採用しない理由（採用できるときは空文字）。</summary>
+        public string LargestBlobRejectReason = string.Empty;
+
         /// <summary>候補画素（プレビュー表示用。次のフレームで上書きされます）。</summary>
         public bool[] CandidateMask;
 
@@ -99,6 +108,23 @@ namespace BallGame
             PersonDetected = false;
             InCooldown = false;
             ChangedPixelCount = 0;
+            HasLargestBlob = false;
+            LargestBlobRejectReason = string.Empty;
+        }
+
+        /// <summary>
+        /// 一番大きい塊の様子を、調整用の短い文にします。
+        /// </summary>
+        /// <returns>説明（塊が無いときは「塊なし」）</returns>
+        public string DescribeLargestBlob()
+        {
+            if (!HasLargestBlob)
+            {
+                return "塊なし";
+            }
+
+            string verdict = LargestBlobRejectReason.Length == 0 ? "ボールとして採用できる" : "不採用：" + LargestBlobRejectReason;
+            return string.Format("最大の塊 面積{0} 強さ{1:F2} 詰まり{2:F2}（{3}）", LargestBlob.Area, LargestBlob.PeakStrength, LargestBlob.FillRatio, verdict);
         }
     }
 }
