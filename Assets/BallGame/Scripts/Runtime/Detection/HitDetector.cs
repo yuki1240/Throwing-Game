@@ -96,11 +96,12 @@ namespace BallGame
             plane = WallPlaneBuilder.Build(baseline, width, height, data.Corners, intrinsics);
             if (!plane.IsValid)
             {
-                Debug.LogWarning("四隅の基準から壁の面を作れませんでした。四隅の位置か基準を録り直してください。");
+                int valid = WallPlaneBuilder.CountValidInside(baseline, width, height, data.Corners);
+                Debug.LogWarning("四隅の内側に有効な基準が少ないため、壁の面を作れませんでした（有効な画素 " + valid + "）。プレビューで壁が灰色に写っている所を四隅で囲み、基準を録り直してください。");
                 return false;
             }
 
-            BuildInsideMask(data.Corners);
+            insideMask = QuadMask.Build(data.Corners, width, height);
             BuildDistanceTables(intrinsics);
             isConfigured = true;
             return true;
@@ -180,46 +181,11 @@ namespace BallGame
             width = newWidth;
             height = newHeight;
             int count = width * height;
-            insideMask = new bool[count];
             normalDotRay = new float[count];
             baselineDistance = new float[count];
             candidate = new bool[count];
             filtered = new bool[count];
             visited = new bool[count];
-        }
-
-        private void BuildInsideMask(IList<Vector2> corners)
-        {
-            Vector2[] polygon = new Vector2[4];
-            for (int i = 0; i < 4; i++)
-            {
-                polygon[i] = new Vector2(corners[i].x * width, corners[i].y * height);
-            }
-
-            for (int y = 0; y < height; y++)
-            {
-                for (int x = 0; x < width; x++)
-                {
-                    insideMask[y * width + x] = IsPointInPolygon(new Vector2(x + 0.5f, y + 0.5f), polygon);
-                }
-            }
-        }
-
-        private static bool IsPointInPolygon(Vector2 point, Vector2[] polygon)
-        {
-            bool inside = false;
-            for (int i = 0, j = polygon.Length - 1; i < polygon.Length; j = i++)
-            {
-                Vector2 a = polygon[i];
-                Vector2 b = polygon[j];
-                bool crosses = (a.y > point.y) != (b.y > point.y);
-                if (crosses && point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x)
-                {
-                    inside = !inside;
-                }
-            }
-
-            return inside;
         }
 
         private void BuildDistanceTables(DepthIntrinsics intrinsics)

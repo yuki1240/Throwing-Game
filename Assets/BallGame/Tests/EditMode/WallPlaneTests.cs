@@ -87,5 +87,50 @@ namespace BallGame.Tests
             Assert.That(plane.IsValid, Is.True);
             Assert.That(Vector3.Dot(plane.Normal, expectedNormal), Is.GreaterThan(0.999f));
         }
+
+        [Test]
+        public void センサーに近い隅の深度が0でも壁の面を作れる()
+        {
+            TestDepthScene scene = new TestDepthScene();
+            CalibrationData data = scene.CreateCalibration();
+            for (int y = scene.Height - 60; y < scene.Height; y++)
+            {
+                for (int x = 0; x < scene.Width; x++)
+                {
+                    data.Baseline[y * scene.Width + x] = 0;
+                }
+            }
+
+            WallPlane plane = WallPlaneBuilder.Build(data.Baseline, data.Width, data.Height, data.Corners, DepthIntrinsics.ForResolution(data.Width, data.Height));
+            Vector3 expectedNormal = new Vector3(0f, -1f, -0.75f).normalized;
+
+            Assert.That(plane.IsValid, Is.True);
+            Assert.That(Vector3.Dot(plane.Normal, expectedNormal), Is.GreaterThan(0.999f));
+            Assert.That(new HitDetector(new DetectionSettings()).Configure(data), Is.True);
+        }
+
+        [Test]
+        public void 壁でない物が混ざっても面は壁に合う()
+        {
+            TestDepthScene scene = new TestDepthScene();
+            CalibrationData data = scene.CreateCalibration();
+            scene.DrawRect(data.Baseline, 40, 40, 60, 60, 300f);
+
+            WallPlane plane = WallPlaneBuilder.Build(data.Baseline, data.Width, data.Height, data.Corners, DepthIntrinsics.ForResolution(data.Width, data.Height));
+            Vector3 expectedNormal = new Vector3(0f, -1f, -0.75f).normalized;
+
+            Assert.That(Vector3.Dot(plane.Normal, expectedNormal), Is.GreaterThan(0.999f));
+        }
+
+        [Test]
+        public void 有効な基準が無いと面を作れない()
+        {
+            TestDepthScene scene = new TestDepthScene();
+            CalibrationData data = scene.CreateCalibration();
+            System.Array.Clear(data.Baseline, 0, data.Baseline.Length);
+
+            Assert.That(WallPlaneBuilder.Build(data.Baseline, data.Width, data.Height, data.Corners, DepthIntrinsics.ForResolution(data.Width, data.Height)).IsValid, Is.False);
+            Assert.That(new HitDetector(new DetectionSettings()).Configure(data), Is.False);
+        }
     }
 }

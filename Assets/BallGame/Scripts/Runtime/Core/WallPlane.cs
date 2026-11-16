@@ -160,12 +160,77 @@ namespace BallGame
     }
 
     /// <summary>
+    /// 四隅で囲った範囲の内側かどうかを調べるクラス。
+    /// </summary>
+    public static class QuadMask
+    {
+        /// <summary>
+        /// 四隅（深度画像上の 0〜1）で囲った範囲の内側にある画素を true にした配列を作ります。
+        /// </summary>
+        /// <param name="corners">四隅</param>
+        /// <param name="width">幅</param>
+        /// <param name="height">高さ</param>
+        /// <returns>内側なら true の配列（幅×高さ）</returns>
+        public static bool[] Build(IList<Vector2> corners, int width, int height)
+        {
+            Vector2[] polygon = new Vector2[corners.Count];
+            for (int i = 0; i < corners.Count; i++)
+            {
+                polygon[i] = new Vector2(corners[i].x * width, corners[i].y * height);
+            }
+
+            bool[] mask = new bool[width * height];
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    mask[y * width + x] = IsPointInPolygon(new Vector2(x + 0.5f, y + 0.5f), polygon);
+                }
+            }
+
+            return mask;
+        }
+
+        /// <summary>
+        /// 点が多角形の内側にあるかを返します。
+        /// </summary>
+        /// <param name="point">点</param>
+        /// <param name="polygon">多角形の頂点</param>
+        /// <returns>内側なら true</returns>
+        public static bool IsPointInPolygon(Vector2 point, IList<Vector2> polygon)
+        {
+            bool inside = false;
+            for (int i = 0, j = polygon.Count - 1; i < polygon.Count; j = i++)
+            {
+                Vector2 a = polygon[i];
+                Vector2 b = polygon[j];
+                bool crosses = (a.y > point.y) != (b.y > point.y);
+                if (crosses && point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x)
+                {
+                    inside = !inside;
+                }
+            }
+
+            return inside;
+        }
+    }
+
+    /// <summary>
     /// 基準深度と四隅から壁の面を作るクラス。
+    /// 四隅で囲った範囲の内側にある有効な基準（0 でない画素）すべてに面を当てはめ、
+    /// 面から大きく外れた点（壁でない物）を除いて当てはめ直します。
+    /// センサーに近すぎて隅の深度が 0 になっていても面を作れます。
     /// </summary>
     public static class WallPlaneBuilder
     {
-        /// <summary>四隅の近くで有効な基準を探す半径（画素）。</summary>
-        public const int SearchRadius = 12;
+        /// <summary>面を作るのに必要な有効な点の数。</summary>
+        public const int MinimumPoints = 50;
+
+        /// <summary>外れた点を除いて当てはめ直す回数。</summary>
+        public const int RefineIterations = 3;
+
+        /// <summary>外れた点とみなす距離の下限（mm）。</summary>
+        public const float MinimumInlierDistanceMm = 25f;
 
         /// <summary>
         /// 基準深度と四隅から壁の面を作ります。
@@ -178,75 +243,170 @@ namespace BallGame
         /// <returns>壁の面（作れないときは IsValid が false）</returns>
         public static WallPlane Build(ushort[] baseline, int width, int height, IList<Vector2> corners, DepthIntrinsics intrinsics)
         {
-            if (baseline == null || corners == null || corners.Count != 4)
+            if (baseline == null || corners == null || corners.Count != 4 || baseline.Length != width * height)
             {
                 return default;
             }
 
-            Vector3[] points = new Vector3[4];
-            for (int i = 0; i < 4; i++)
+            List<Vector3> points = CollectPoints(baseline, width, height, QuadMask.Build(corners, width, height), intrinsics);
+            if (points.Count < MinimumPoints)
             {
-                if (!TryGetCornerPoint(baseline, width, height, corners[i], intrinsics, out points[i]))
+                return default;
+            }
+
+            WallPlane plane = FitPlane(points);
+            for (int i = 0; i < RefineIterations && plane.IsValid; i++)
+            {
+                List<Vector3> inliers = SelectInliers(points, plane);
+                if (inliers.Count < MinimumPoints)
                 {
-                    return default;
+                    break;
+                }
+
+                plane = FitPlane(inliers);
+            }
+
+            return plane;
+        }
+
+        /// <summary>
+        /// 内側にある有効な基準の数を数えます（面を作れないときの説明用）。
+        /// </summary>
+        /// <param name="baseline">基準深度</param>
+        /// <param name="width">幅</param>
+        /// <param name="height">高さ</param>
+        /// <param name="corners">四隅</param>
+        /// <returns>有効な画素の数</returns>
+        public static int CountValidInside(ushort[] baseline, int width, int height, IList<Vector2> corners)
+        {
+            bool[] mask = QuadMask.Build(corners, width, height);
+            int count = 0;
+            for (int i = 0; i < mask.Length; i++)
+            {
+                if (mask[i] && baseline[i] != 0)
+                {
+                    count++;
                 }
             }
 
-            return WallPlane.FromCornerPoints(points);
+            return count;
         }
 
-        private static bool TryGetCornerPoint(ushort[] baseline, int width, int height, Vector2 cornerUv, DepthIntrinsics intrinsics, out Vector3 point)
+        /// <summary>
+        /// 点の集まりに最小二乗で面を当てはめます。
+        /// </summary>
+        /// <param name="points">点（mm）</param>
+        /// <returns>壁の面</returns>
+        public static WallPlane FitPlane(IList<Vector3> points)
         {
-            int centerX = Mathf.Clamp(Mathf.FloorToInt(cornerUv.x * width), 0, width - 1);
-            int centerY = Mathf.Clamp(Mathf.FloorToInt(cornerUv.y * height), 0, height - 1);
-            for (int radius = 0; radius <= SearchRadius; radius++)
+            if (points == null || points.Count < 3)
             {
-                if (TryMedianAround(baseline, width, height, centerX, centerY, radius, intrinsics, out point))
+                return default;
+            }
+
+            Vector3 centroid = Centroid(points);
+            Vector3 normal = SmallestVarianceDirection(points, centroid);
+            if (normal.sqrMagnitude < 1e-12f)
+            {
+                return default;
+            }
+
+            return WallPlane.FromNormalAndOffset(normal, -Vector3.Dot(normal.normalized, centroid) * normal.magnitude);
+        }
+
+        private static List<Vector3> CollectPoints(ushort[] baseline, int width, int height, bool[] mask, DepthIntrinsics intrinsics)
+        {
+            List<Vector3> points = new List<Vector3>();
+            for (int y = 0; y < height; y += 2)
+            {
+                for (int x = 0; x < width; x += 2)
                 {
-                    return true;
+                    int index = y * width + x;
+                    if (mask[index] && baseline[index] != 0)
+                    {
+                        points.Add(intrinsics.Unproject(x + 0.5f, y + 0.5f, baseline[index]));
+                    }
                 }
             }
 
-            point = Vector3.zero;
-            return false;
+            return points;
         }
 
-        private static bool TryMedianAround(ushort[] baseline, int width, int height, int centerX, int centerY, int radius, DepthIntrinsics intrinsics, out Vector3 point)
+        private static List<Vector3> SelectInliers(List<Vector3> points, WallPlane plane)
         {
-            List<Vector3> samples = new List<Vector3>();
-            for (int y = centerY - radius; y <= centerY + radius; y++)
+            float[] distances = new float[points.Count];
+            for (int i = 0; i < points.Count; i++)
             {
-                for (int x = centerX - radius; x <= centerX + radius; x++)
+                distances[i] = Mathf.Abs(plane.DistanceTo(points[i]));
+            }
+
+            float[] sorted = (float[])distances.Clone();
+            System.Array.Sort(sorted);
+            float limit = Mathf.Max(MinimumInlierDistanceMm, sorted[sorted.Length / 2] * 3f);
+            List<Vector3> inliers = new List<Vector3>();
+            for (int i = 0; i < points.Count; i++)
+            {
+                if (distances[i] <= limit)
                 {
-                    AddSample(baseline, width, height, x, y, intrinsics, samples);
+                    inliers.Add(points[i]);
                 }
             }
 
-            if (samples.Count == 0)
-            {
-                point = Vector3.zero;
-                return false;
-            }
-
-            samples.Sort((a, b) => a.z.CompareTo(b.z));
-            point = samples[samples.Count / 2];
-            return true;
+            return inliers;
         }
 
-        private static void AddSample(ushort[] baseline, int width, int height, int x, int y, DepthIntrinsics intrinsics, List<Vector3> samples)
+        private static Vector3 Centroid(IList<Vector3> points)
         {
-            if (x < 0 || y < 0 || x >= width || y >= height)
+            double x = 0;
+            double y = 0;
+            double z = 0;
+            foreach (Vector3 point in points)
             {
-                return;
+                x += point.x;
+                y += point.y;
+                z += point.z;
             }
 
-            ushort depth = baseline[y * width + x];
-            if (depth == 0)
+            return new Vector3((float)(x / points.Count), (float)(y / points.Count), (float)(z / points.Count));
+        }
+
+        private static Vector3 SmallestVarianceDirection(IList<Vector3> points, Vector3 centroid)
+        {
+            double xx = 0, xy = 0, xz = 0, yy = 0, yz = 0, zz = 0;
+            foreach (Vector3 point in points)
             {
-                return;
+                double dx = point.x - centroid.x;
+                double dy = point.y - centroid.y;
+                double dz = point.z - centroid.z;
+                xx += dx * dx;
+                xy += dx * dy;
+                xz += dx * dz;
+                yy += dy * dy;
+                yz += dy * dz;
+                zz += dz * dz;
             }
 
-            samples.Add(intrinsics.Unproject(x + 0.5f, y + 0.5f, depth));
+            // 3つの軸のうち、最もよく解ける向きで法線を求める
+            double detX = yy * zz - yz * yz;
+            double detY = xx * zz - xz * xz;
+            double detZ = xx * yy - xy * xy;
+            double best = System.Math.Max(detX, System.Math.Max(detY, detZ));
+            if (best <= 0)
+            {
+                return Vector3.zero;
+            }
+
+            if (best == detX)
+            {
+                return new Vector3((float)detX, (float)(xz * yz - xy * zz), (float)(xy * yz - xz * yy));
+            }
+
+            if (best == detY)
+            {
+                return new Vector3((float)(xz * yz - xy * zz), (float)detY, (float)(xy * xz - yz * xx));
+            }
+
+            return new Vector3((float)(xy * yz - xz * yy), (float)(xy * xz - yz * xx), (float)detZ);
         }
     }
 }
