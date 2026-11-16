@@ -309,6 +309,12 @@ namespace BallGame
             {
                 overlay.SetActive(!overlay.activeSelf);
             }
+
+            if (keyboard != null && keyboard.tKey.wasPressedThisFrame)
+            {
+                // テスト用：Kinect がなくても、画面の中ほどにボールが当たったことにする
+                OnWallHit(new Vector2(0.3f + 0.4f * (float)random.NextDouble(), 0.3f + 0.3f * (float)random.NextDouble()));
+            }
         }
 
         private void HandleHits()
@@ -497,7 +503,7 @@ namespace BallGame
             DetectionResult result = session.LatestResult;
             string blob = result != null ? result.DescribeLargestBlob() : string.Empty;
             string state = result != null && result.PersonDetected ? "（人を検知中）" : string.Empty;
-            string click = session.IsSimulated ? "\n模擬深度：画面をクリックするとボールが当たります" : string.Empty;
+            string click = (session.IsSimulated ? "\n模擬深度：画面をクリックするとボールが当たります" : string.Empty) + "\nＴキー：テスト用に1球当たったことにする";
             string mode = tree3D != null ? "3D" : environmentReady ? "2D" : "3D 読み込み中";
             return "クリスマス（" + mode + "）　飾り " + flow.HitCount + " / " + flow.Goal + state + "\n" + blob + click;
         }

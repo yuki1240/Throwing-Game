@@ -286,11 +286,21 @@ namespace BallGame
         /// <param name="viewportPoint">ボールが当たった場所（画面の左下 0・右上 1）</param>
         public void PlaceStar(Vector2 viewportPoint)
         {
-            star = CreateStar();
-            starBaseRotation = Quaternion.LookRotation(towardCamera);
-            star.rotation = starBaseRotation;
             Vector3 top = new Vector3(treeBounds.center.x, treeBounds.max.y + starSize * 0.6f, treeBounds.center.z);
-            star.gameObject.AddComponent<OrnamentFlight3D>().Fly(GetStartPoint(viewportPoint), top, Vector3.one * starSize, starSize * 2f);
+            try
+            {
+                star = CreateStar();
+                starBaseRotation = Quaternion.LookRotation(towardCamera);
+                star.rotation = starBaseRotation;
+                star.gameObject.AddComponent<OrnamentFlight3D>().Fly(GetStartPoint(viewportPoint), top, Vector3.one * starSize, starSize * 2f);
+            }
+            catch (System.Exception exception)
+            {
+                Debug.LogError("[Christmas] 星を付けられませんでした：" + exception);
+            }
+
+            Vector3 view = viewCamera.WorldToViewportPoint(top);
+            Debug.Log("[Christmas] 星を付けました。位置=" + top + " 大きさ=" + starSize + " 画面上の位置=(" + view.x.ToString("F2") + ", " + view.y.ToString("F2") + ") カメラからの距離=" + view.z.ToString("F1"));
             LightUpBulbs();
         }
 
@@ -377,7 +387,9 @@ namespace BallGame
             MeshRenderer renderer = starObject.AddComponent<MeshRenderer>();
             Material material = CreateMaterial(StarColor, 0.6f);
             SetEmission(material, StarColor * 2.5f);
+            material.SetFloat("_Cull", 0f); // 面の向きに関係なく両面とも描く
             renderer.sharedMaterial = material;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             AddGlowLight(starObject.transform, StarColor, starSize * 8f, 2.5f);
             return starObject.transform;
         }
