@@ -44,8 +44,7 @@ namespace BallGame.Tests
         public void 小さい塊は2フレーム続いてから採用する()
         {
             ushort[] frame = scene.EmptyFrame();
-            int area = scene.DrawDisc(frame, 200f, 120f, 2.3f, 70f);
-            Assert.That(area, Is.InRange(12, 23));
+            scene.DrawDisc(frame, 200f, 80f, 2.3f, 70f);
 
             Assert.That(detector.Process(frame, 0f).Hits, Is.Empty);
             Assert.That(detector.Process(frame, 0.033f).Hits.Count, Is.EqualTo(1));
@@ -131,14 +130,15 @@ namespace BallGame.Tests
         }
 
         [Test]
-        public void 変化画素が4500を超えると壁から遠くても人として除外する()
+        public void 変化した面積が大きいと壁から遠くても人として除外する()
         {
             ushort[] frame = scene.EmptyFrame();
-            Assert.That(scene.DrawRect(frame, 60, 40, 70, 70, 400f), Is.GreaterThan(4500));
-            scene.DrawDisc(frame, 250f, 60f, 4.5f, 70f);
+            scene.DrawRect(frame, 20, 15, 200, 90, 400f);
+            scene.DrawDisc(frame, 270f, 150f, 4.5f, 70f);
 
             DetectionResult result = detector.Process(frame, 0f);
 
+            Assert.That(result.ChangedArea, Is.GreaterThan(4500f));
             Assert.That(result.PersonDetected, Is.True);
             Assert.That(result.Hits, Is.Empty);
         }
@@ -157,7 +157,7 @@ namespace BallGame.Tests
             Assert.That(during.Hits, Is.Empty);
 
             ushort[] later = scene.EmptyFrame();
-            scene.DrawDisc(later, 150f, 180f, 4.5f, 70f);
+            scene.DrawDisc(later, 150f, 180f, 8f, 70f);
             Assert.That(detector.Process(later, 0.6f).Hits.Count, Is.EqualTo(1));
         }
 
@@ -181,7 +181,7 @@ namespace BallGame.Tests
             ushort[] first = scene.EmptyFrame();
             scene.DrawDisc(first, 100f, 100f, 4.5f, 70f);
             ushort[] second = scene.EmptyFrame();
-            scene.DrawDisc(second, 220f, 150f, 4.5f, 70f);
+            scene.DrawDisc(second, 220f, 150f, 7f, 70f);
 
             Assert.That(detector.Process(first, 0f).Hits.Count, Is.EqualTo(1));
             Assert.That(detector.Process(scene.EmptyFrame(), 0.033f).Hits, Is.Empty);
@@ -351,10 +351,44 @@ namespace BallGame.Tests
         public void はっきり壁から離れた小さい塊は1フレームで採用する()
         {
             ushort[] frame = scene.EmptyFrame();
-            int area = scene.DrawDisc(frame, 200f, 120f, 2.3f, 120f);
-            Assert.That(area, Is.LessThan(24));
+            scene.DrawDisc(frame, 200f, 80f, 2.3f, 120f);
 
             Assert.That(detector.Process(frame, 0f).Hits.Count, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void 同じ大きさの物は近くても遠くても同じ面積に直る()
+        {
+            ushort[] far = scene.EmptyFrame();
+            ushort[] near = scene.EmptyFrame();
+            scene.DrawDisc(far, 160f, 40f, 3f, 70f);
+            scene.DrawDisc(near, 160f, 200f, 9f, 70f);
+            float farDepth = scene.Simulator.GetDepthAtWallDistance(40, 70f);
+            float nearDepth = scene.Simulator.GetDepthAtWallDistance(200, 70f);
+
+            Assert.That(farDepth / nearDepth, Is.GreaterThan(2.5f), "遠い所は近い所の2.5倍以上の深度");
+            Assert.That(detector.GetSizeWeight(farDepth), Is.GreaterThan(detector.GetSizeWeight(nearDepth) * 6f));
+
+            DepthBlob farBlob = detector.Process(far, 0f).LargestBlob;
+            detector.ResetTracking();
+            DepthBlob nearBlob = detector.Process(near, 1f).LargestBlob;
+            float farArea = farBlob.NormalizedArea;
+            float nearArea = nearBlob.NormalizedArea;
+
+            Assert.That(nearBlob.Area, Is.GreaterThan(farBlob.Area * 5));
+            Assert.That(nearArea / farArea, Is.InRange(0.5f, 2f), "画素数は大きく違っても、実際の大きさはほぼ同じ");
+        }
+
+        [Test]
+        public void 近い所の手のひら大の物は人と判定しない()
+        {
+            ushort[] frame = scene.EmptyFrame();
+            int pixels = scene.DrawRect(frame, 130, 170, 60, 40, 70f);
+            DetectionResult result = detector.Process(frame, 0f);
+
+            Assert.That(pixels, Is.GreaterThan(2000));
+            Assert.That(result.PersonDetected, Is.False);
+            Assert.That(result.Hits.Count, Is.EqualTo(1));
         }
     }
 }

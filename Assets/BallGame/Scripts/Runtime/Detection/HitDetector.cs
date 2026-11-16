@@ -32,6 +32,8 @@ namespace BallGame
         private bool[] candidate;
         private bool[] weakCandidate;
         private float[] strength;
+        private float[] sizeWeight;
+        private float sizeWeightFactor;
         private bool[] filtered;
         private bool[] visited;
         private WallPlane plane;
@@ -106,6 +108,7 @@ namespace BallGame
 
             insideMask = QuadMask.Build(data.Corners, width, height);
             normalDotRay = LocalWallNormals.Build(baseline, width, height, intrinsics, plane);
+            sizeWeightFactor = ComputeSizeWeightFactor(intrinsics);
             BuildNoiseTables(data.BaselineNoise);
             isConfigured = true;
             return true;
@@ -192,6 +195,7 @@ namespace BallGame
             candidate = new bool[count];
             weakCandidate = new bool[count];
             strength = new float[count];
+            sizeWeight = new float[count];
             filtered = new bool[count];
             visited = new bool[count];
         }
@@ -217,9 +221,27 @@ namespace BallGame
             return Mathf.Max(settings.NoiseFloorMm, byNoise);
         }
 
+        /// <summary>
+        /// 深度 depthMm の所の1画素の面積が、基準の深度（2m）の所の1画素の何倍かを返します。
+        /// </summary>
+        /// <param name="depthMm">深度（mm）</param>
+        /// <returns>面積の倍率</returns>
+        public float GetSizeWeight(float depthMm)
+        {
+            return depthMm * depthMm * sizeWeightFactor;
+        }
+
+        private float ComputeSizeWeightFactor(DepthIntrinsics intrinsics)
+        {
+            // 1画素の実際の長さは 深度÷焦点距離。基準は Kinect（512×424）で 2m の所の1画素
+            float referencePixelMm = settings.ReferenceDepthMm / DepthIntrinsics.KinectFocalLength512;
+            return 1f / (intrinsics.FocalX * intrinsics.FocalX * referencePixelMm * referencePixelMm);
+        }
+
         private void ClassifyPixels(ushort[] depth)
         {
             int changed = 0;
+            float changedArea = 0f;
             for (int i = 0; i < candidate.Length; i++)
             {
                 candidate[i] = false;
@@ -231,6 +253,7 @@ namespace BallGame
                 }
 
                 ushort current = depth[i];
+                sizeWeight[i] = GetSizeWeight(current != 0 ? current : baseline[i]);
                 if (current == 0)
                 {
                     // 基準があった画素が 0 になった：赤外線が返らない物体として候補にする
@@ -239,6 +262,7 @@ namespace BallGame
                     {
                         MarkCandidate(i, settings.ZeroDepthStrength, true);
                         changed++;
+                        changedArea += sizeWeight[i];
                     }
 
                     continue;
@@ -250,6 +274,7 @@ namespace BallGame
                 if (pixelStrength >= 1f)
                 {
                     changed++;
+                    changedArea += sizeWeight[i];
                 }
 
                 if (withinRange && pixelStrength >= settings.WeakRatio)
@@ -259,6 +284,7 @@ namespace BallGame
             }
 
             result.ChangedPixelCount = changed;
+            result.ChangedArea = changedArea;
         }
 
         private void MarkCandidate(int index, float pixelStrength, bool strong)
@@ -318,6 +344,7 @@ namespace BallGame
             DepthBlob blob = new DepthBlob { MinX = int.MaxValue, MinY = int.MaxValue, MaxX = int.MinValue, MaxY = int.MinValue };
             long sumX = 0;
             long sumY = 0;
+            float sumWeight = 0f;
             floodQueue.Clear();
             floodQueue.Enqueue(start);
             visited[start] = true;
@@ -327,6 +354,7 @@ namespace BallGame
                 int x = index % width;
                 int y = index / width;
                 AddPixelToBlob(ref blob, x, y);
+                sumWeight += sizeWeight[index];
                 blob.PeakStrength = Mathf.Max(blob.PeakStrength, strength[index]);
                 sumX += x;
                 sumY += y;
@@ -338,6 +366,8 @@ namespace BallGame
 
             blob.CentroidX = (float)sumX / blob.Area;
             blob.CentroidY = (float)sumY / blob.Area;
+            blob.NormalizedArea = sumWeight;
+            blob.LinearScale = Mathf.Sqrt(sumWeight / blob.Area);
             return blob;
         }
 
@@ -370,7 +400,7 @@ namespace BallGame
             result.HasLargestBlob = false;
             foreach (DepthBlob blob in result.Blobs)
             {
-                if (!result.HasLargestBlob || blob.Area > result.LargestBlob.Area)
+                if (!result.HasLargestBlob || blob.NormalizedArea > result.LargestBlob.NormalizedArea)
                 {
                     result.LargestBlob = blob;
                     result.HasLargestBlob = true;
@@ -382,14 +412,14 @@ namespace BallGame
 
         private bool IsPersonFrame()
         {
-            if (result.ChangedPixelCount > settings.PersonPixelTotal)
+            if (result.ChangedArea > settings.PersonPixelTotal)
             {
                 return true;
             }
 
             foreach (DepthBlob blob in result.Blobs)
             {
-                if (blob.Width > settings.PersonMaxExtent || blob.Height > settings.PersonMaxExtent)
+                if (blob.NormalizedWidth > settings.PersonMaxExtent || blob.NormalizedHeight > settings.PersonMaxExtent)
                 {
                     return true;
                 }
@@ -433,7 +463,7 @@ namespace BallGame
         /// <returns>理由（採用できるときは空文字）</returns>
         public string GetRejectReason(DepthBlob blob)
         {
-            if (blob.Area < settings.MinArea)
+            if (blob.NormalizedArea < settings.MinArea)
             {
                 return "小さすぎる";
             }
@@ -464,7 +494,8 @@ namespace BallGame
         private Track MatchOrCreateTrack(DepthBlob blob)
         {
             Vector2 position = new Vector2(blob.CentroidX, blob.CentroidY);
-            Track track = FindNearestTrack(position);
+            float radiusPixels = settings.TrackMatchRadius / Mathf.Max(0.05f, blob.LinearScale);
+            Track track = FindNearestTrack(position, radiusPixels);
             if (track == null)
             {
                 track = new Track { Position = position, LastFrame = frameIndex, ConsecutiveFrames = 1 };
@@ -478,10 +509,10 @@ namespace BallGame
             return track;
         }
 
-        private Track FindNearestTrack(Vector2 position)
+        private Track FindNearestTrack(Vector2 position, float radiusPixels)
         {
             Track best = null;
-            float bestDistance = settings.TrackMatchRadius;
+            float bestDistance = radiusPixels;
             foreach (Track track in tracks)
             {
                 if (track.LastFrame == frameIndex)
@@ -509,7 +540,7 @@ namespace BallGame
             }
 
             // 速いボールは壁の近くに1〜2フレームしかいないため、はっきり壁から離れた塊は小さくても1フレームで採用する
-            bool accepted = blob.Area >= settings.InstantArea
+            bool accepted = blob.NormalizedArea >= settings.InstantArea
                 || blob.PeakStrength >= settings.InstantPeakStrength
                 || track.ConsecutiveFrames >= settings.ConfirmFrames;
             if (!accepted)

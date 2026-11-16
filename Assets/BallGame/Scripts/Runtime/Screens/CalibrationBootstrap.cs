@@ -554,7 +554,7 @@ namespace BallGame
             }
 
             string person = result.PersonDetected ? "（人を検知中）" : result.InCooldown ? "（人が去ったあとの待ち時間）" : string.Empty;
-            return "変化画素：" + result.ChangedPixelCount + person + "\n" + result.DescribeLargestBlob();
+            return "変化画素：" + result.ChangedPixelCount + "（2m換算 " + result.ChangedArea.ToString("F0") + "）" + person + "\n" + result.DescribeLargestBlob();
         }
     }
 }

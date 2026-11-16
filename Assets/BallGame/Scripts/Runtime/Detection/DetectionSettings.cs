@@ -17,10 +17,17 @@ namespace BallGame
         /// <summary>壁からの距離の上限（mm）。これより遠いものは捨てる。</summary>
         public int MaxDistanceMm = CalibrationData.DefaultMaxDistanceMm;
 
-        /// <summary>これ未満の面積の塊は捨てる。</summary>
+        /// <summary>
+        /// 大きさの基準にする深度（mm）。面積・縦横・人の判定・同じ物かどうかの距離は、
+        /// 「Kinect（512×424）から この深度の所で何画素ぶんか」に直して比べる。
+        /// 近い所は1画素が小さく、遠い所は大きいので、実際の大きさで比べるため。
+        /// </summary>
+        public float ReferenceDepthMm = 2000f;
+
+        /// <summary>これ未満の面積（2m の所での画素数に直した値）の塊は捨てる。</summary>
         public int MinArea = 12;
 
-        /// <summary>これ以上の面積の塊は1フレームで採用する。</summary>
+        /// <summary>これ以上の面積（2m の所での画素数に直した値）の塊は1フレームで採用する。</summary>
         public int InstantArea = 24;
 
         /// <summary>芯につながっていれば、しきい値のこの割合の弱い変化でも塊に含める（ボールの縁を拾うため）。</summary>
@@ -41,16 +48,16 @@ namespace BallGame
         /// <summary>小さい塊を採用するまでに続けて見えるフレーム数。</summary>
         public int ConfirmFrames = 2;
 
-        /// <summary>変化画素の合計がこれを超えたら人とみなす。</summary>
+        /// <summary>変化した面積（2m の所での画素数に直した値）の合計がこれを超えたら人とみなす。</summary>
         public int PersonPixelTotal = 4500;
 
-        /// <summary>塊の縦横どちらかがこれを超えたら人とみなす（画素）。</summary>
+        /// <summary>塊の縦横どちらか（2m の所での画素数に直した値）がこれを超えたら人とみなす。</summary>
         public int PersonMaxExtent = 80;
 
         /// <summary>人が去ったあと待つ秒数。</summary>
         public float PersonCooldownSeconds = 0.5f;
 
-        /// <summary>同じ物体とみなす重心の距離（画素）。</summary>
+        /// <summary>同じ物体とみなす重心の距離（2m の所での画素数に直した値）。</summary>
         public float TrackMatchRadius = 8f;
 
         /// <summary>見えなくなった物体を覚えておくフレーム数（同じ場所に留まった物体を出し続けないため）。</summary>

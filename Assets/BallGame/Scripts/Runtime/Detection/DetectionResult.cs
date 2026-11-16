@@ -29,6 +29,24 @@ namespace BallGame
         /// <summary>重心 y（画素）。</summary>
         public float CentroidY;
 
+        /// <summary>実際の大きさに直した面積（2m の所での画素数に直した値）。</summary>
+        public float NormalizedArea;
+
+        /// <summary>1画素の実際の長さの倍率（2m の所の1画素を 1 とした値）。</summary>
+        public float LinearScale;
+
+        /// <summary>実際の大きさに直した横幅（2m の所での画素数）。</summary>
+        public float NormalizedWidth
+        {
+            get { return Width * LinearScale; }
+        }
+
+        /// <summary>実際の大きさに直した縦幅（2m の所での画素数）。</summary>
+        public float NormalizedHeight
+        {
+            get { return Height * LinearScale; }
+        }
+
         /// <summary>塊の中で一番強い点の強さ（壁からの距離÷しきい値）。</summary>
         public float PeakStrength;
 
@@ -86,6 +104,9 @@ namespace BallGame
         /// <summary>変化画素の合計（壁からの距離の上限に関係なく数える）。</summary>
         public int ChangedPixelCount;
 
+        /// <summary>変化した面積の合計（2m の所での画素数に直した値）。</summary>
+        public float ChangedArea;
+
         /// <summary>このフレームで一番大きい塊があるか。</summary>
         public bool HasLargestBlob;
 
@@ -108,6 +129,7 @@ namespace BallGame
             PersonDetected = false;
             InCooldown = false;
             ChangedPixelCount = 0;
+            ChangedArea = 0f;
             HasLargestBlob = false;
             LargestBlobRejectReason = string.Empty;
         }
@@ -124,7 +146,7 @@ namespace BallGame
             }
 
             string verdict = LargestBlobRejectReason.Length == 0 ? "ボールとして採用できる" : "不採用：" + LargestBlobRejectReason;
-            return string.Format("最大の塊 面積{0} 強さ{1:F2} 詰まり{2:F2}（{3}）", LargestBlob.Area, LargestBlob.PeakStrength, LargestBlob.FillRatio, verdict);
+            return string.Format("最大の塊 面積{0:F0}（2m換算） 強さ{1:F2} 詰まり{2:F2}（{3}）", LargestBlob.NormalizedArea, LargestBlob.PeakStrength, LargestBlob.FillRatio, verdict);
         }
     }
 }
