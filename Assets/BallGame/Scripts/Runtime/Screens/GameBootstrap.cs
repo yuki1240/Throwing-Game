@@ -1,0 +1,377 @@
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.SceneManagement;
+using UnityEngine.UI;
+
+namespace BallGame
+{
+    /// <summary>
+    /// Game シーンの起動用オブジェクト。実行時に 1920×1080 の Canvas でゲーム画面を組み立てます。
+    /// 四隅で囲った範囲を背景全体へ引き伸ばし、当たった位置に花か演出を出します。
+    /// スペースキーで上部の操作・HIT 表示・校正へ戻るボタン・壁からの距離をまとめて隠します。
+    /// </summary>
+    public sealed class GameBootstrap : MonoBehaviour
+    {
+        /// <summary>Calibration シーンの名前。</summary>
+        public const string CalibrationSceneName = "Calibration";
+
+        /// <summary>切替間隔の1回の増減（秒）。</summary>
+        public const float IntervalStepSeconds = 60f;
+
+        [SerializeField]
+        [Tooltip("演出設定（ScriptableObject）。空のときは初期値で動きます。")]
+        private GameEffectSettings settings;
+
+        private readonly System.Random random = new System.Random();
+        private CalibrationSession session;
+        private List<Texture2D> backgrounds = new List<Texture2D>();
+        private BackgroundRotation rotation;
+        private RawImage background;
+        private EffectSpawner spawner;
+        private GameObject overlay;
+        private Text backgroundNameText;
+        private Text intervalText;
+        private Text distanceText;
+        private Text hitText;
+        private Text messageText;
+        private Button randomButton;
+        private Button fixedButton;
+        private int hitCount;
+        private string lastHitDescription = "まだ当たっていません";
+
+        /// <summary>演出設定。</summary>
+        public GameEffectSettings Settings
+        {
+            get { return settings; }
+        }
+
+        private void Start()
+        {
+            session = CalibrationSession.EnsureExists();
+            EventSystemKeeper.Ensure();
+            EnsureSettings();
+            LoadBackgrounds();
+            BuildScreen();
+            ApplyBackground();
+            RefreshTexts();
+        }
+
+        private void Update()
+        {
+            session = CalibrationSession.EnsureExists();
+            HandleKeyboard();
+            if (rotation.Tick(Time.unscaledDeltaTime))
+            {
+                ApplyBackground();
+            }
+
+            ProcessHits();
+            RefreshTexts();
+        }
+
+        private void EnsureSettings()
+        {
+            if (settings == null)
+            {
+                Debug.LogWarning("GameBootstrap に演出設定が割り当てられていないため、初期値で動きます。");
+                settings = ScriptableObject.CreateInstance<GameEffectSettings>();
+            }
+        }
+
+        private void LoadBackgrounds()
+        {
+            backgrounds = BackgroundLibrary.LoadAll();
+            rotation = new BackgroundRotation(backgrounds.Count);
+        }
+
+        private void BuildScreen()
+        {
+            Canvas canvas = UiFactory.CreateCanvas("GameCanvas", 0);
+            BuildBackground(canvas.transform);
+            BuildEffectLayer(canvas.transform);
+            overlay = UiFactory.CreateRect(canvas.transform, "Overlay（スペースで隠す）").gameObject;
+            UiFactory.Stretch((RectTransform)overlay.transform);
+            BuildTopBar(overlay.transform);
+            BuildHitPanel(overlay.transform);
+            BuildMessage(canvas.transform);
+        }
+
+        private void BuildBackground(Transform parent)
+        {
+            RectTransform rect = UiFactory.CreateRect(parent, "Background");
+            UiFactory.Stretch(rect);
+            background = rect.gameObject.AddComponent<RawImage>();
+            background.color = Color.white;
+            rect.gameObject.AddComponent<PointerReceiver>().Pressed += OnBackgroundPressed;
+        }
+
+        private void BuildEffectLayer(Transform parent)
+        {
+            RectTransform rect = UiFactory.CreateRect(parent, "Effects");
+            UiFactory.Stretch(rect);
+            spawner = rect.gameObject.AddComponent<EffectSpawner>();
+            spawner.Initialize(settings);
+        }
+
+        private void BuildTopBar(Transform parent)
+        {
+            Image bar = UiFactory.CreatePanel(parent, "TopBar", UiFactory.PanelColor);
+            RectTransform rect = bar.rectTransform;
+            rect.anchorMin = new Vector2(0f, 1f);
+            rect.anchorMax = new Vector2(1f, 1f);
+            rect.pivot = new Vector2(0.5f, 1f);
+            rect.anchoredPosition = Vector2.zero;
+            rect.sizeDelta = new Vector2(0f, 84f);
+            BuildTopBarItems(bar.transform);
+        }
+
+        private void BuildTopBarItems(Transform bar)
+        {
+            float x = 14f;
+            x = AddBarButton(bar, "◀", x, 60f, OnPreviousBackground);
+            backgroundNameText = AddBarText(bar, x, 380f, 24);
+            x += 380f;
+            x = AddBarButton(bar, "▶", x, 60f, OnNextBackground);
+            randomButton = CreateBarButton(bar, "ランダム", ref x, 190f, OnRandomPressed);
+            fixedButton = CreateBarButton(bar, "固定", ref x, 160f, OnFixedPressed);
+            AddBarText(bar, x, 90f, 24).text = "切替";
+            x += 90f;
+            x = AddBarButton(bar, "－", x, 56f, () => ChangeInterval(-IntervalStepSeconds));
+            intervalText = AddBarText(bar, x, 130f, 26);
+            x += 130f;
+            x = AddBarButton(bar, "＋", x, 56f, () => ChangeInterval(IntervalStepSeconds));
+            AddBarText(bar, x, 170f, 24).text = "壁からの距離";
+            x += 170f;
+            x = AddBarButton(bar, "－", x, 56f, () => ChangeDistance(-1));
+            distanceText = AddBarText(bar, x, 90f, 26);
+            x += 90f;
+            x = AddBarButton(bar, "＋", x, 56f, () => ChangeDistance(1));
+            AddBarButton(bar, "校正へ戻る", x + 10f, 190f, OnBackToCalibration);
+        }
+
+        private static float AddBarButton(Transform bar, string label, float x, float width, UnityEngine.Events.UnityAction onClick)
+        {
+            Button button = UiFactory.CreateButton(bar, label, 26, onClick);
+            UiFactory.PlaceTopLeft((RectTransform)button.transform, x, 12f, width, 60f);
+            return x + width + 8f;
+        }
+
+        private static Button CreateBarButton(Transform bar, string label, ref float x, float width, UnityEngine.Events.UnityAction onClick)
+        {
+            Button button = UiFactory.CreateButton(bar, label, 26, onClick);
+            UiFactory.PlaceTopLeft((RectTransform)button.transform, x, 12f, width, 60f);
+            x += width + 8f;
+            return button;
+        }
+
+        private static Text AddBarText(Transform bar, float x, float width, int fontSize)
+        {
+            Text text = UiFactory.CreateText(bar, string.Empty, fontSize, TextAnchor.MiddleCenter);
+            UiFactory.PlaceTopLeft(text.rectTransform, x, 12f, width, 60f);
+            return text;
+        }
+
+        private void BuildHitPanel(Transform parent)
+        {
+            Image panel = UiFactory.CreatePanel(parent, "HitPanel", UiFactory.PanelColor);
+            RectTransform rect = panel.rectTransform;
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.zero;
+            rect.pivot = Vector2.zero;
+            rect.anchoredPosition = new Vector2(20f, 20f);
+            rect.sizeDelta = new Vector2(900f, 150f);
+            hitText = UiFactory.CreateText(panel.transform, string.Empty, 26, TextAnchor.UpperLeft);
+            UiFactory.PlaceTopLeft(hitText.rectTransform, 16f, 10f, 870f, 130f);
+        }
+
+        private void BuildMessage(Transform parent)
+        {
+            Image panel = UiFactory.CreatePanel(parent, "Message", UiFactory.PanelColor);
+            RectTransform rect = panel.rectTransform;
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = new Vector2(1100f, 200f);
+            panel.raycastTarget = false;
+            messageText = UiFactory.CreateText(panel.transform, string.Empty, 34, TextAnchor.MiddleCenter);
+            UiFactory.Stretch(messageText.rectTransform);
+        }
+
+        private void HandleKeyboard()
+        {
+            Keyboard keyboard = Keyboard.current;
+            if (keyboard != null && keyboard.spaceKey.wasPressedThisFrame)
+            {
+                overlay.SetActive(!overlay.activeSelf);
+            }
+        }
+
+        private void ProcessHits()
+        {
+            DetectionResult result = session.LatestResult;
+            if (!session.HasNewFrame || result == null || !session.HasHomography)
+            {
+                return;
+            }
+
+            foreach (DetectedHit hit in result.Hits)
+            {
+                HandleHit(hit);
+            }
+        }
+
+        private void HandleHit(DetectedHit hit)
+        {
+            Vector2 raw = session.ImageToWall.Transform(hit.ImageUv);
+            Vector2 wallUv = new Vector2(Mathf.Clamp01(raw.x), Mathf.Clamp01(raw.y));
+            HitReactionKind reaction = HitReactionSelector.Classify(wallUv.y, settings.flowerBoundary);
+            BackgroundTheme theme = settings.FindTheme(GetCurrentBackgroundName(), rotation.CurrentIndex);
+            RectTransform placed = SpawnReaction(reaction, theme, wallUv, out string reactionName);
+            hitCount++;
+            LogHit(hit, wallUv, placed, reactionName);
+        }
+
+        private RectTransform SpawnReaction(HitReactionKind reaction, BackgroundTheme theme, Vector2 wallUv, out string reactionName)
+        {
+            if (reaction == HitReactionKind.Flower)
+            {
+                Sprite flower = HitReactionSelector.PickFlower(theme, random);
+                if (flower != null)
+                {
+                    reactionName = "花 " + flower.name;
+                    return spawner.SpawnFlower(flower, wallUv);
+                }
+            }
+
+            EffectKind kind = HitReactionSelector.PickEffect(HitReactionSelector.ResolveEffects(theme, rotation.CurrentIndex), random);
+            reactionName = reaction == HitReactionKind.Flower ? "演出 " + kind + "（花が未割り当て）" : "演出 " + kind;
+            return spawner.SpawnEffect(kind, wallUv);
+        }
+
+        private void LogHit(DetectedHit hit, Vector2 wallUv, RectTransform placed, string reactionName)
+        {
+            Vector2 screen = RectTransformUtility.WorldToScreenPoint(null, placed.position);
+            Vector2 canvas = placed.anchoredPosition;
+            lastHitDescription = string.Format("壁({0:F2}, {1:F2})  {2}", wallUv.x, wallUv.y, reactionName);
+            Debug.Log(string.Format(
+                "[HIT] Kinect=({0:F3}, {1:F3}) 画素=({2:F1}, {3:F1}) 面積={4} → 壁=({5:F3}, {6:F3}) → Unity画面=({7:F1}, {8:F1}) Canvas=({9:F1}, {10:F1}) {11}",
+                hit.ImageUv.x, hit.ImageUv.y, hit.Pixel.x, hit.Pixel.y, hit.Area,
+                wallUv.x, wallUv.y, screen.x, screen.y, canvas.x, canvas.y, reactionName));
+        }
+
+        private void OnBackgroundPressed(Vector2 wallUv)
+        {
+            SimulatedDepthSource simulator = session != null ? session.Simulator : null;
+            if (simulator == null || !session.HasHomography)
+            {
+                return;
+            }
+
+            Vector2 imageUv = session.WallToImage.Transform(wallUv);
+            if (imageUv.x < 0f || imageUv.y < 0f || imageUv.x > 1f || imageUv.y > 1f)
+            {
+                return;
+            }
+
+            simulator.InjectBall(imageUv);
+        }
+
+        private void OnPreviousBackground()
+        {
+            rotation.SelectPrevious();
+            ApplyBackground();
+        }
+
+        private void OnNextBackground()
+        {
+            rotation.SelectNext();
+            ApplyBackground();
+        }
+
+        private void OnRandomPressed()
+        {
+            rotation.IsRandom = !rotation.IsRandom;
+        }
+
+        private void OnFixedPressed()
+        {
+            rotation.IsFixed = !rotation.IsFixed;
+        }
+
+        private void ChangeInterval(float deltaSeconds)
+        {
+            rotation.SetInterval(rotation.IntervalSeconds + deltaSeconds);
+        }
+
+        private void ChangeDistance(int deltaCm)
+        {
+            session.SetMaxDistanceCm(session.Data.GetMaxDistanceCm() + deltaCm);
+        }
+
+        private void OnBackToCalibration()
+        {
+            SceneManager.LoadScene(CalibrationSceneName);
+        }
+
+        private void ApplyBackground()
+        {
+            if (backgrounds.Count == 0)
+            {
+                background.texture = null;
+                background.color = new Color(0.97f, 0.97f, 0.97f, 1f);
+                return;
+            }
+
+            background.texture = backgrounds[rotation.CurrentIndex];
+            background.color = Color.white;
+        }
+
+        private string GetCurrentBackgroundName()
+        {
+            return backgrounds.Count == 0 ? string.Empty : backgrounds[rotation.CurrentIndex].name;
+        }
+
+        private void RefreshTexts()
+        {
+            backgroundNameText.text = backgrounds.Count == 0 ? "背景画像なし" : (rotation.CurrentIndex + 1) + "/" + backgrounds.Count + " " + GetCurrentBackgroundName();
+            UiFactory.SetButtonLabel(randomButton, "ランダム：" + (rotation.IsRandom ? "オン" : "オフ"));
+            UiFactory.SetButtonLabel(fixedButton, "固定：" + (rotation.IsFixed ? "オン" : "オフ"));
+            UiFactory.SetButtonColor(randomButton, rotation.IsRandom ? UiFactory.SelectedColor : UiFactory.ButtonColor);
+            UiFactory.SetButtonColor(fixedButton, rotation.IsFixed ? UiFactory.SelectedColor : UiFactory.ButtonColor);
+            intervalText.text = FormatInterval(rotation.IntervalSeconds);
+            distanceText.text = session.Data.GetMaxDistanceCm() + "cm";
+            hitText.text = BuildHitText();
+            RefreshMessage();
+        }
+
+        private string BuildHitText()
+        {
+            string state = string.Empty;
+            DetectionResult result = session.LatestResult;
+            if (result != null && result.PersonDetected)
+            {
+                state = "　人を検知中（ボールは出しません）";
+            }
+            else if (result != null && result.InCooldown)
+            {
+                state = "　人が去ったあとの待ち時間";
+            }
+
+            string clickHint = session.IsSimulated ? "\n模擬深度：画面をクリックするとボールが当たります" : string.Empty;
+            return "HIT " + hitCount + state + "\n最後：" + lastHitDescription + clickHint;
+        }
+
+        private void RefreshMessage()
+        {
+            bool needsCalibration = !session.HasHomography || !session.Detector.IsConfigured;
+            messageText.transform.parent.gameObject.SetActive(needsCalibration);
+            messageText.text = "校正が終わっていません。\n「校正へ戻る」から四隅と基準を設定してください。";
+        }
+
+        private static string FormatInterval(float seconds)
+        {
+            int minutes = Mathf.RoundToInt(seconds / 60f);
+            return minutes >= 60 ? "1時間" : minutes + "分";
+        }
+    }
+}
