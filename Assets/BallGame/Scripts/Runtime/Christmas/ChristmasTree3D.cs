@@ -22,6 +22,12 @@ namespace BallGame
         private const string InvisibleShaderName = "BallGame/Invisible";
         private const float BulbBlinkSpeed = 5f;
 
+        /// <summary>星の中心の高さ（ツリーの最上部を 0 として、星の大きさの何倍か。マイナスなら下）。星がてっぺんに少しかかるくらいにします。</summary>
+        private const float StarCenterOffset = -0.35f;
+
+        /// <summary>星の光の強さ（まぶしすぎないよう控えめにします）。</summary>
+        private const float StarEmissionScale = 0.45f;
+
         /// <summary>星の先が画面の上から何割までに収まっていてほしいか（上端が 1）。</summary>
         private const float MaxStarViewportY = 0.9f;
 
@@ -130,7 +136,7 @@ namespace BallGame
                 return;
             }
 
-            Vector3 starTip = new Vector3(treeBounds.center.x, treeBounds.max.y + starSize * 1.7f, treeBounds.center.z);
+            Vector3 starTip = new Vector3(treeBounds.center.x, treeBounds.max.y + starSize * (StarCenterOffset + 1.1f), treeBounds.center.z);
             int guard = 0;
             while (viewCamera.WorldToViewportPoint(starTip).y > MaxStarViewportY && viewCamera.fieldOfView < MaxFieldOfView && guard++ < 100)
             {
@@ -352,7 +358,7 @@ namespace BallGame
         /// <param name="viewportPoint">ボールが当たった場所（画面の左下 0・右上 1）</param>
         public void PlaceStar(Vector2 viewportPoint)
         {
-            Vector3 top = new Vector3(treeBounds.center.x, treeBounds.max.y + starSize * 0.6f, treeBounds.center.z);
+            Vector3 top = new Vector3(treeBounds.center.x, treeBounds.max.y + starSize * StarCenterOffset, treeBounds.center.z);
             try
             {
                 star = CreateStar();
@@ -452,11 +458,11 @@ namespace BallGame
             starObject.AddComponent<MeshFilter>().sharedMesh = BuildStarMesh();
             MeshRenderer renderer = starObject.AddComponent<MeshRenderer>();
             Material material = CreateMaterial(StarColor, 0.6f);
-            SetEmission(material, StarColor * 1.6f);
+            SetEmission(material, StarColor * StarEmissionScale);
             material.SetFloat("_Cull", 0f); // 面の向きに関係なく両面とも描く
             renderer.sharedMaterial = material;
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            AddGlowLight(starObject.transform, StarColor, starSize * 8f, 2.5f);
+            AddGlowLight(starObject.transform, StarColor, starSize * 4f, 0.5f);
             return starObject.transform;
         }
 
