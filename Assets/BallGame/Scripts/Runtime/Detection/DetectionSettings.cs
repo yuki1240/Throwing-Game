@@ -15,10 +15,22 @@ namespace BallGame
         public int MaxDistanceMm = CalibrationData.DefaultMaxDistanceMm;
 
         /// <summary>これ未満の面積の塊は捨てる。</summary>
-        public int MinArea = 16;
+        public int MinArea = 12;
 
         /// <summary>これ以上の面積の塊は1フレームで採用する。</summary>
-        public int InstantArea = 32;
+        public int InstantArea = 24;
+
+        /// <summary>芯につながっていれば、しきい値のこの割合の弱い変化でも塊に含める（ボールの縁を拾うため）。</summary>
+        public float WeakRatio = 0.6f;
+
+        /// <summary>塊の中で一番強い点が、しきい値のこの倍率以上ないと採用しない（ノイズを捨てるため）。</summary>
+        public float MinPeakStrength = 1.3f;
+
+        /// <summary>塊が縦横の箱のこの割合以上を埋めていないと採用しない（まばらなノイズを捨てるため）。</summary>
+        public float MinFillRatio = 0.3f;
+
+        /// <summary>深度 0 になった画素の強さ（しきい値の何倍とみなすか）。</summary>
+        public float ZeroDepthStrength = 2f;
 
         /// <summary>小さい塊を採用するまでに続けて見えるフレーム数。</summary>
         public int ConfirmFrames = 2;

@@ -30,7 +30,7 @@ namespace BallGame.Tests
         public void 大きめのボールは1フレームで重心にヒットする()
         {
             ushort[] frame = scene.EmptyFrame();
-            Assert.That(scene.DrawDisc(frame, 100f, 80f, 4.5f, 70f), Is.GreaterThanOrEqualTo(32));
+            Assert.That(scene.DrawDisc(frame, 100f, 80f, 4.5f, 70f), Is.GreaterThanOrEqualTo(24));
 
             DetectionResult result = detector.Process(frame, 0f);
 
@@ -44,18 +44,18 @@ namespace BallGame.Tests
         public void 小さい塊は2フレーム続いてから採用する()
         {
             ushort[] frame = scene.EmptyFrame();
-            int area = scene.DrawDisc(frame, 200f, 120f, 2.8f, 70f);
-            Assert.That(area, Is.InRange(16, 31));
+            int area = scene.DrawDisc(frame, 200f, 120f, 2.3f, 70f);
+            Assert.That(area, Is.InRange(12, 23));
 
             Assert.That(detector.Process(frame, 0f).Hits, Is.Empty);
             Assert.That(detector.Process(frame, 0.033f).Hits.Count, Is.EqualTo(1));
         }
 
         [Test]
-        public void 面積16未満は捨てる()
+        public void 面積12未満は捨てる()
         {
             ushort[] frame = scene.EmptyFrame();
-            Assert.That(scene.DrawDisc(frame, 200f, 120f, 1.9f, 70f), Is.LessThan(16));
+            Assert.That(scene.DrawDisc(frame, 200f, 120f, 1.5f, 70f), Is.LessThan(12));
 
             for (int i = 0; i < 4; i++)
             {
@@ -262,6 +262,57 @@ namespace BallGame.Tests
 
             Assert.That(strict.Process(frame, 0f).Hits, Is.Empty);
             Assert.That(strict.Process(frame, 0f).ChangedPixelCount, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void しきい値すれすれのまばらな点はボールにしない()
+        {
+            ushort[] frame = scene.EmptyFrame();
+            System.Random random = new System.Random(9);
+            for (int i = 0; i < 400; i++)
+            {
+                int x = 120 + random.Next(30);
+                int y = 100 + random.Next(30);
+                if (random.NextDouble() < 0.5)
+                {
+                    scene.DrawRect(frame, x, y, 1, 1, 50f);
+                }
+            }
+
+            for (int f = 0; f < 5; f++)
+            {
+                Assert.That(detector.Process(frame, f * 0.033f).Hits, Is.Empty);
+            }
+        }
+
+        [Test]
+        public void 弱い縁も塊に含めてボールを拾いやすくする()
+        {
+            ushort[] coreOnly = scene.EmptyFrame();
+            int coreArea = scene.DrawDisc(coreOnly, 160f, 100f, 2.3f, 70f);
+            Assert.That(coreArea, Is.LessThan(24));
+            Assert.That(detector.Process(coreOnly, 0f).Hits, Is.Empty, "芯だけなら1フレームでは出ない");
+
+            detector.ResetTracking();
+            ushort[] withRim = scene.EmptyFrame();
+            scene.DrawDisc(withRim, 220f, 100f, 4.5f, 32f);
+            scene.DrawDisc(withRim, 220f, 100f, 2.3f, 70f);
+            DetectionResult result = detector.Process(withRim, 0f);
+
+            Assert.That(result.Hits.Count, Is.EqualTo(1), "弱い縁も含めると1フレームで出る");
+            Assert.That(result.Hits[0].Area, Is.GreaterThanOrEqualTo(24));
+        }
+
+        [Test]
+        public void 弱い変化だけの塊はボールにしない()
+        {
+            ushort[] frame = scene.EmptyFrame();
+            scene.DrawDisc(frame, 160f, 100f, 6f, 40f);
+
+            for (int f = 0; f < 3; f++)
+            {
+                Assert.That(detector.Process(frame, f * 0.033f).Hits, Is.Empty);
+            }
         }
     }
 }

@@ -31,6 +31,8 @@ namespace BallGame
         private float[] pixelNoiseDistance;
         private bool[] unstablePixel;
         private bool[] candidate;
+        private bool[] weakCandidate;
+        private float[] strength;
         private bool[] filtered;
         private bool[] visited;
         private WallPlane plane;
@@ -138,7 +140,7 @@ namespace BallGame
             ClassifyPixels(depth);
             RemoveIsolatedPixels();
             ExtractBlobs();
-            result.CandidateMask = filtered;
+            result.CandidateMask = visited;
             if (IsPersonFrame())
             {
                 HandlePersonFrame(timeSeconds);
@@ -189,6 +191,8 @@ namespace BallGame
             pixelNoiseDistance = new float[count];
             unstablePixel = new bool[count];
             candidate = new bool[count];
+            weakCandidate = new bool[count];
+            strength = new float[count];
             filtered = new bool[count];
             visited = new bool[count];
         }
@@ -232,6 +236,8 @@ namespace BallGame
             for (int i = 0; i < candidate.Length; i++)
             {
                 candidate[i] = false;
+                weakCandidate[i] = false;
+                strength[i] = 0f;
                 if (!insideMask[i] || baseline[i] == 0)
                 {
                     continue;
@@ -244,7 +250,7 @@ namespace BallGame
                     // （基準を録る間に 0 になったことがある不安定な画素は、揺れとみなして使わない）
                     if (!unstablePixel[i])
                     {
-                        candidate[i] = true;
+                        MarkCandidate(i, settings.ZeroDepthStrength, true);
                         changed++;
                     }
 
@@ -252,16 +258,27 @@ namespace BallGame
                 }
 
                 float distance = GetDistanceFromWall(i, current);
-                if (distance < GetNoiseThreshold(i))
+                float pixelStrength = distance / GetNoiseThreshold(i);
+                bool withinRange = distance <= settings.MaxDistanceMm;
+                if (pixelStrength >= 1f)
                 {
-                    continue;
+                    changed++;
                 }
 
-                changed++;
-                candidate[i] = distance <= settings.MaxDistanceMm;
+                if (withinRange && pixelStrength >= settings.WeakRatio)
+                {
+                    MarkCandidate(i, pixelStrength, pixelStrength >= 1f);
+                }
             }
 
             result.ChangedPixelCount = changed;
+        }
+
+        private void MarkCandidate(int index, float pixelStrength, bool strong)
+        {
+            strength[index] = pixelStrength;
+            weakCandidate[index] = true;
+            candidate[index] = strong;
         }
 
         private void RemoveIsolatedPixels()
@@ -323,6 +340,7 @@ namespace BallGame
                 int x = index % width;
                 int y = index / width;
                 AddPixelToBlob(ref blob, x, y);
+                blob.PeakStrength = Mathf.Max(blob.PeakStrength, strength[index]);
                 sumX += x;
                 sumY += y;
                 EnqueueNeighbor(x + 1, y);
@@ -353,7 +371,7 @@ namespace BallGame
             }
 
             int index = y * width + x;
-            if (filtered[index] && !visited[index])
+            if ((filtered[index] || weakCandidate[index]) && !visited[index])
             {
                 visited[index] = true;
                 floodQueue.Enqueue(index);
@@ -390,7 +408,7 @@ namespace BallGame
         {
             foreach (DepthBlob blob in result.Blobs)
             {
-                if (blob.Area < settings.MinArea)
+                if (!IsBallLike(blob))
                 {
                     continue;
                 }
@@ -404,6 +422,18 @@ namespace BallGame
 
                 TryEmit(track, blob);
             }
+        }
+
+        /// <summary>
+        /// 塊がボールらしいか（面積・一番強い点・詰まり具合）を返します。
+        /// </summary>
+        /// <param name="blob">塊</param>
+        /// <returns>ボールらしければ true</returns>
+        public bool IsBallLike(DepthBlob blob)
+        {
+            return blob.Area >= settings.MinArea
+                && blob.PeakStrength >= settings.MinPeakStrength
+                && blob.FillRatio >= settings.MinFillRatio;
         }
 
         private Track MatchOrCreateTrack(DepthBlob blob)

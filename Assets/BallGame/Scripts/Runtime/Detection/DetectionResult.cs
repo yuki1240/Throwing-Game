@@ -29,6 +29,15 @@ namespace BallGame
         /// <summary>重心 y（画素）。</summary>
         public float CentroidY;
 
+        /// <summary>塊の中で一番強い点の強さ（壁からの距離÷しきい値）。</summary>
+        public float PeakStrength;
+
+        /// <summary>縦横の箱のうち塊が埋めている割合。</summary>
+        public float FillRatio
+        {
+            get { return (float)Area / (Width * Height); }
+        }
+
         /// <summary>横幅（画素）。</summary>
         public int Width
         {
