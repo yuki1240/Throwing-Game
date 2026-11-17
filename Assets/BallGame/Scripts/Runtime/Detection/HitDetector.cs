@@ -149,6 +149,7 @@ namespace BallGame
             ExtractBlobs();
             RecordLargestBlob();
             result.CandidateMask = visited;
+            result.PersonReason = GetPersonReason();
             MarkBallPixels();
             if (IsPersonFrame())
             {
@@ -511,20 +512,26 @@ namespace BallGame
 
         private bool IsPersonFrame()
         {
+            return result.PersonReason.Length > 0;
+        }
+
+        // 人サイズのフレームと判断する理由を返す（そうでなければ空）。診断の記録に出すため、数字も入れる
+        private string GetPersonReason()
+        {
             if (result.ChangedArea > settings.PersonPixelTotal)
             {
-                return true;
+                return "変化の合計が大きい（" + result.ChangedArea.ToString("F0") + " > " + settings.PersonPixelTotal + "）";
             }
 
             foreach (DepthBlob blob in result.Blobs)
             {
                 if (blob.NormalizedWidth > settings.PersonMaxExtent || blob.NormalizedHeight > settings.PersonMaxExtent)
                 {
-                    return true;
+                    return "塊が大きい（幅 " + blob.NormalizedWidth.ToString("F0") + "・高さ " + blob.NormalizedHeight.ToString("F0") + " > " + settings.PersonMaxExtent + "）";
                 }
             }
 
-            return false;
+            return string.Empty;
         }
 
         private void HandlePersonFrame(float timeSeconds)

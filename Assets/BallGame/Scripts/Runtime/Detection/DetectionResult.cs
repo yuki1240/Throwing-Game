@@ -122,6 +122,9 @@ namespace BallGame
         /// <summary>ボールとして採用できる塊の画素（プレビューで赤く表示する。次のフレームで上書きされます）。</summary>
         public bool[] BallMask;
 
+        /// <summary>人サイズのフレームと判断した理由（人サイズでなければ空）。</summary>
+        public string PersonReason = string.Empty;
+
         /// <summary>BallMask に1画素でもあるか。</summary>
         public bool HasBall;
 
@@ -141,6 +144,7 @@ namespace BallGame
             ChangedArea = 0f;
             HasLargestBlob = false;
             HasBall = false;
+            PersonReason = string.Empty;
             BallImageUvs.Clear();
             LargestBlobRejectReason = string.Empty;
         }

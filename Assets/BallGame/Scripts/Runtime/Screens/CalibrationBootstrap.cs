@@ -113,7 +113,7 @@ namespace BallGame
             }
 
             lastLoggedBlob = position;
-            string verdict = result.PersonDetected ? "人サイズのフレーム" : result.LargestBlobRejectReason.Length == 0 ? "採用できる" : "不採用：" + result.LargestBlobRejectReason;
+            string verdict = result.PersonDetected ? "人サイズのフレーム：" + result.PersonReason : result.LargestBlobRejectReason.Length == 0 ? "採用できる" : "不採用：" + result.LargestBlobRejectReason;
             blobLog.Add(string.Format("t={0:F1}s 画素=({1:F0},{2:F0}) 横={3:P0} 面積(2m換算)={4:F0} 強さ={5:F2} 詰まり={6:F2} → {7}", Time.unscaledTime, blob.CentroidX, blob.CentroidY, (blob.CentroidX + 0.5f) / Mathf.Max(1, session.FrameWidth), blob.NormalizedArea, blob.PeakStrength, blob.FillRatio, verdict));
             if (blobLog.Count > 60)
             {
