@@ -172,7 +172,7 @@ namespace BallGame
             RecordLargestBlob();
             result.CandidateMask = visited;
             result.PersonReason = GetPersonReason();
-            MarkBallPixels();
+            ClearBallMarks();
             if (IsPersonFrame())
             {
                 bursts.Clear();
@@ -191,6 +191,7 @@ namespace BallGame
             }
 
             FinishOldBursts();
+            MarkHitPixels();
             ForgetOldTracks();
             return result;
         }
@@ -495,38 +496,40 @@ namespace BallGame
             result.LargestBlobRejectReason = result.HasLargestBlob ? GetRejectReason(result.LargestBlob) : string.Empty;
         }
 
-        // プレビューで赤く出すため、ボールとして採用できる塊の画素に印を付ける（人のフレームでは付けない）
-        private void MarkBallPixels()
+        // プレビューで赤く出すため、当たりを出した位置に印を付ける（飛んでいる間や落ちていく間の軌跡には付けない）
+        private void ClearBallMarks()
         {
             System.Array.Clear(ballMask, 0, ballMask.Length);
             result.BallMask = ballMask;
             result.HasBall = false;
-            if (IsPersonFrame())
-            {
-                return;
-            }
+        }
 
-            foreach (DepthBlob blob in result.Blobs)
+        private void MarkHitPixels()
+        {
+            foreach (DetectedHit hit in result.Hits)
             {
-                if (IsBallLike(blob))
-                {
-                    result.HasBall |= MarkBlobPixels(blob);
-                    result.BallImageUvs.Add(new Vector2((blob.CentroidX + 0.5f) / width, (blob.CentroidY + 0.5f) / height));
-                }
+                result.BallImageUvs.Add(hit.ImageUv);
+                float radius = Mathf.Max(2f, Mathf.Sqrt(hit.Area / Mathf.PI));
+                result.HasBall |= MarkDisc(hit.Pixel, radius);
             }
         }
 
-        private bool MarkBlobPixels(DepthBlob blob)
+        private bool MarkDisc(Vector2 center, float radius)
         {
             bool marked = false;
-            for (int y = blob.MinY; y <= blob.MaxY; y++)
+            int minX = Mathf.Max(0, Mathf.FloorToInt(center.x - radius));
+            int maxX = Mathf.Min(width - 1, Mathf.CeilToInt(center.x + radius));
+            int minY = Mathf.Max(0, Mathf.FloorToInt(center.y - radius));
+            int maxY = Mathf.Min(height - 1, Mathf.CeilToInt(center.y + radius));
+            for (int y = minY; y <= maxY; y++)
             {
-                for (int x = blob.MinX; x <= blob.MaxX; x++)
+                for (int x = minX; x <= maxX; x++)
                 {
-                    int index = y * width + x;
-                    if (visited[index])
+                    float dx = x + 0.5f - center.x;
+                    float dy = y + 0.5f - center.y;
+                    if (dx * dx + dy * dy <= radius * radius)
                     {
-                        ballMask[index] = true;
+                        ballMask[y * width + x] = true;
                         marked = true;
                     }
                 }

@@ -327,6 +327,31 @@ namespace BallGame.Tests
         }
 
         [Test]
+        public void 飛んでいる間は赤い印を付けず当たりの瞬間だけ付ける()
+        {
+            float[] heights = { 140f, 140f, 110f, 70f, 110f, 140f, 140f };
+            bool markedBeforeHit = false;
+            bool markedAtHit = false;
+            for (int i = 0; i < heights.Length; i++)
+            {
+                ushort[] frame = scene.EmptyFrame();
+                scene.DrawDisc(frame, 60f + i * 20f, 100f, 4.5f, heights[i]);
+                DetectionResult result = detector.Process(frame, i * 0.033f);
+                if (result.Hits.Count > 0)
+                {
+                    markedAtHit = result.HasBall && result.BallImageUvs.Count == 1;
+                }
+                else
+                {
+                    markedBeforeHit |= result.HasBall;
+                }
+            }
+
+            Assert.That(markedBeforeHit, Is.False);
+            Assert.That(markedAtHit, Is.True);
+        }
+
+        [Test]
         public void 軌跡が途切れたあとの次の1球はまた出す()
         {
             ushort[] ball = scene.EmptyFrame();
