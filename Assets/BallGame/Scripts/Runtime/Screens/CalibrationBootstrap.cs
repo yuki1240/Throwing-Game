@@ -25,6 +25,7 @@ namespace BallGame
         private const float PreviewMaxWidth = 1100f;
         private const float PreviewMaxHeight = 930f;
         private const float PreviewAspect = 1920f / 1080f;
+        private const int BlobLogLimit = 800;
         private const float PanelLeft = 1180f;
         private const float PanelWidth = 700f;
         private const float CornerGrabRadius = 40f;
@@ -94,13 +95,38 @@ namespace BallGame
             {
                 SaveDiagnostics();
             }
+
+            if (keyboard != null && keyboard.f8Key.wasPressedThisFrame)
+            {
+                blobLog.Clear();
+                lastLoggedBlob = new Vector2(-1f, -1f);
+                diagnosticMessage = "記録を消しました";
+            }
+        }
+
+        private void TrimBlobLog()
+        {
+            while (blobLog.Count > BlobLogLimit)
+            {
+                blobLog.RemoveAt(0);
+            }
         }
 
         // 直近に見えた塊（位置・大きさ・採用できたか）を覚えておき、診断の保存に入れる
         private void RecordBlobLog()
         {
             DetectionResult result = session.LatestResult;
-            if (result == null || !result.HasLargestBlob || !session.IsSavedCalibrationUsable)
+            if (result == null || !session.IsSavedCalibrationUsable)
+            {
+                return;
+            }
+
+            foreach (DetectedHit hit in result.Hits)
+            {
+                blobLog.Add(string.Format("t={0:F1}s ★当たりとして採用 画素=({1:F0},{2:F0}) 横={3:P0}", Time.unscaledTime, hit.Pixel.x, hit.Pixel.y, hit.ImageUv.x));
+            }
+
+            if (!result.HasLargestBlob)
             {
                 return;
             }
@@ -115,10 +141,7 @@ namespace BallGame
             lastLoggedBlob = position;
             string verdict = result.PersonDetected ? "人サイズのフレーム：" + result.PersonReason : result.LargestBlobRejectReason.Length == 0 ? "採用できる" : "不採用：" + result.LargestBlobRejectReason;
             blobLog.Add(string.Format("t={0:F1}s 画素=({1:F0},{2:F0}) 横={3:P0} 面積(2m換算)={4:F0} 強さ={5:F2} 詰まり={6:F2} → {7}", Time.unscaledTime, blob.CentroidX, blob.CentroidY, (blob.CentroidX + 0.5f) / Mathf.Max(1, session.FrameWidth), blob.NormalizedArea, blob.PeakStrength, blob.FillRatio, verdict));
-            if (blobLog.Count > 60)
-            {
-                blobLog.RemoveAt(0);
-            }
+            TrimBlobLog();
         }
 
         // 「ボールが反応しない場所」の原因を調べるため、帯ごとの表と直近の塊の記録をファイルに保存する
@@ -635,7 +658,7 @@ namespace BallGame
             }
 
             string blind = session.Detector != null && session.Detector.IsConfigured ? "\n検知できない所（紫）：" + Mathf.RoundToInt(session.Detector.BlindRatio * 100f) + "%（基準の深度が取れていない／基準を録る間に揺れた画素）" : string.Empty;
-            string diagnostic = "\nＦ９キー：診断を保存" + (diagnosticMessage.Length > 0 ? "（" + diagnosticMessage + "）" : string.Empty);
+            string diagnostic = "\nＦ９キー：診断を保存／Ｆ８キー：記録を消す" + (diagnosticMessage.Length > 0 ? "（" + diagnosticMessage + "）" : string.Empty);
             string person = result.PersonDetected ? "（人を検知中）" : result.InCooldown ? "（人が去ったあとの待ち時間）" : string.Empty;
             return "変化画素：" + result.ChangedPixelCount + "（2m換算 " + result.ChangedArea.ToString("F0") + "）" + person + "\n" + result.DescribeLargestBlob() + blind + diagnostic;
         }
