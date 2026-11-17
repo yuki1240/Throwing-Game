@@ -8,8 +8,8 @@ namespace BallGame
 {
     /// <summary>
     /// Bubble シーンの起動用オブジェクト。空にシャボン玉がふわふわ浮いていて、ボールを当てると「パチン」と割れます。
-    /// 割れた数を数え、目標の数まで割ったら「すごい！」と出して、10秒のカウントダウンのあと次の場面（ランダム）へ移ります。
-    /// 目標に届かなくても、10分たつと次の場面へ移ります（最後の1分に当たったときは、さらに1分待ちます）。
+    /// 15秒のあいだに15個すべて割れたら満点です。終わると割れた数に合わせた結果を5秒見せ、すぐ次の回を始めます。
+    /// これを15分たつまで繰り返し、15分を過ぎたら、遊んでいる最中の回の結果まで見せてから次の場面（ランダム）へ移ります。
     /// 遊ぶのは幼稚園の子どもなので、文字は大きく、ひらがなを多くしています。
     /// </summary>
     public sealed class BubbleBootstrap : MonoBehaviour
@@ -17,29 +17,24 @@ namespace BallGame
         /// <summary>校正のシーン名。</summary>
         public const string CalibrationSceneName = "Calibration";
 
-        /// <summary>割る目標の数。</summary>
-        public const int PopGoal = 30;
-
         private static readonly Color GoldText = new Color(1f, 0.92f, 0.35f, 1f);
         private static readonly Color CountText = new Color(1f, 0.55f, 0.1f, 1f);
 
         private readonly System.Random random = new System.Random();
-        private readonly ChristmasFlow flow = new ChristmasFlow(PopGoal);
-        private readonly SceneTimer timer = new SceneTimer();
         private readonly List<Bubble> popped = new List<Bubble>();
         private readonly Dictionary<Bubble, RectTransform> views = new Dictionary<Bubble, RectTransform>();
         private readonly List<Bubble> staleViews = new List<Bubble>();
         private CalibrationSession session;
-        private BubbleField field;
+        private BubbleGame game;
         private RectTransform bubbleLayer;
         private RectTransform popLayer;
         private EffectSpawner spawner;
         private AudioSource audioSource;
         private Text instructionText;
         private Text countText;
-        private Text celebrationText;
-        private Text countdownTitleText;
-        private Text countdownNumberText;
+        private Text timeText;
+        private Text resultText;
+        private Text nextTitleText;
         private Text operatorText;
         private GameObject overlay;
         private Button holdButton;
@@ -52,10 +47,9 @@ namespace BallGame
         private void Start()
         {
             nextSceneName = SceneRotation.PickNext(SceneRotation.BubbleScene);
-            ApplyHoldMode();
             session = CalibrationSession.EnsureExists();
             EventSystemKeeper.Ensure();
-            field = new BubbleField(UiFactory.ReferenceResolution.x, UiFactory.ReferenceResolution.y, random);
+            game = new BubbleGame(UiFactory.ReferenceResolution.x, UiFactory.ReferenceResolution.y, random);
             audioSource = gameObject.AddComponent<AudioSource>();
             audioSource.playOnAwake = false;
             BuildScreen();
@@ -68,11 +62,9 @@ namespace BallGame
             HandleKeyboard();
             HandleHits();
             UpdateBallMarkers();
-            field.Tick(Time.deltaTime);
+            TickGame();
             SyncBubbleViews();
-            flow.Tick(Time.deltaTime);
-            TickTimer();
-            AnimateCelebration();
+            AnimateResult();
             RefreshTexts();
             GoToNextSceneWhenFinished();
         }
@@ -129,9 +121,9 @@ namespace BallGame
         {
             instructionText = UiFactory.PlaceKidsText(parent, "ボールを あてて シャボンだまを わろう！", 58, Color.white, new Vector2(960f, 1015f), new Vector2(1800f, 90f));
             countText = UiFactory.PlaceKidsText(parent, string.Empty, 90, CountText, new Vector2(400f, 900f), new Vector2(760f, 150f));
-            celebrationText = UiFactory.PlaceKidsText(parent, PopGoal + "こ われたよ！ すごーい！", 110, CountText, new Vector2(960f, 520f), new Vector2(1900f, 200f));
-            countdownTitleText = UiFactory.PlaceKidsText(parent, SceneRotation.GetKidsTitle(nextSceneName), 80, Color.white, new Vector2(960f, 760f), new Vector2(1600f, 140f));
-            countdownNumberText = UiFactory.PlaceKidsText(parent, string.Empty, 340, GoldText, new Vector2(960f, 440f), new Vector2(600f, 420f));
+            timeText = UiFactory.PlaceKidsText(parent, string.Empty, 90, GoldText, new Vector2(1500f, 900f), new Vector2(760f, 150f));
+            resultText = UiFactory.PlaceKidsText(parent, string.Empty, 100, CountText, new Vector2(960f, 560f), new Vector2(1900f, 220f));
+            nextTitleText = UiFactory.PlaceKidsText(parent, SceneRotation.GetKidsTitle(nextSceneName), 80, Color.white, new Vector2(960f, 330f), new Vector2(1600f, 140f));
         }
 
         private void BuildOperatorOverlay(Transform parent)
@@ -176,13 +168,7 @@ namespace BallGame
         private void ToggleHold()
         {
             SceneHold.Toggle();
-            ApplyHoldMode();
             HoldButton.Refresh(holdButton);
-        }
-
-        private void ApplyHoldMode()
-        {
-            flow.SetGoal(SceneHold.GetGoal(SceneHold.EndlessGoal));
         }
 
         private void UpdateBallMarkers()
@@ -222,15 +208,13 @@ namespace BallGame
                 return;
             }
 
-            if (flow.Phase != ChristmasPhase.Playing)
+            if (game.Phase != BubblePhase.Playing)
             {
                 return;
             }
 
-            // 最後の1分に当たったときは、場面を替える時間が1分延びる
-            timer.NotifyHit();
             Vector2 canvasPosition = ToCanvas(wallUv);
-            int count = field.PopAt(canvasPosition, popped);
+            int count = game.PopAt(canvasPosition, popped);
             if (count == 0)
             {
                 spawner.SpawnEffect(EffectKind.Flash, wallUv);
@@ -238,10 +222,6 @@ namespace BallGame
             }
 
             PlayPops(true);
-            if (field.PoppedCount >= PopGoal)
-            {
-                flow.Complete();
-            }
         }
 
         private static Vector2 ToCanvas(Vector2 wallUv)
@@ -263,7 +243,7 @@ namespace BallGame
 
         private void SyncBubbleViews()
         {
-            foreach (Bubble bubble in field.Bubbles)
+            foreach (Bubble bubble in game.Field.Bubbles)
             {
                 RectTransform view;
                 if (!views.TryGetValue(bubble, out view))
@@ -293,7 +273,7 @@ namespace BallGame
 
         private bool ContainsBubble(Bubble bubble)
         {
-            foreach (Bubble candidate in field.Bubbles)
+            foreach (Bubble candidate in game.Field.Bubbles)
             {
                 if (candidate == bubble)
                 {
@@ -318,66 +298,56 @@ namespace BallGame
             return rect;
         }
 
-        private void AnimateCelebration()
+        private void TickGame()
         {
-            bool celebrating = flow.Phase == ChristmasPhase.Celebrating || flow.Phase == ChristmasPhase.Countdown;
-            if (!celebrating || Time.time < nextBurstAt)
+            if (SceneHold.IsHolding)
+            {
+                // 固定モード：時間は進めず、玉だけ浮かべる
+                game.FloatOnly(Time.deltaTime);
+                return;
+            }
+
+            game.Tick(Time.deltaTime);
+        }
+
+        private void AnimateResult()
+        {
+            if (game.Phase != BubblePhase.Result || Time.time < nextBurstAt)
             {
                 return;
             }
 
-            // お祝いの間は、玉が自分でぽんぽん割れる（数には入れない）
+            // 結果の間は、残った玉が自分でぽんぽん割れる（数には入れない）。全部割れた回は、お祝いの光が出る
             nextBurstAt = Time.time + 0.25f;
             Bubble bubble;
-            if (field.PopRandomVisible(out bubble))
+            if (game.Field.PopRandomVisible(out bubble))
             {
                 popped.Clear();
                 popped.Add(bubble);
                 PlayPops(false);
                 spawner.SpawnEffect(EffectKind.FlashParticles, new Vector2(bubble.Position.x / UiFactory.ReferenceResolution.x, bubble.Position.y / UiFactory.ReferenceResolution.y));
             }
-        }
-
-        private void TickTimer()
-        {
-            // 遊んでいる間だけ時間を数える（お祝いとカウントダウンは別に進む）
-            if (flow.Phase == ChristmasPhase.Playing && !SceneHold.IsHolding)
+            else if (game.PoppedCount >= BubbleGame.BubbleCount)
             {
-                timer.Tick(Time.unscaledDeltaTime);
+                spawner.SpawnEffect(EffectKind.FlashParticles, new Vector2(0.1f + 0.8f * (float)random.NextDouble(), 0.2f + 0.7f * (float)random.NextDouble()));
             }
         }
 
         private void RefreshTexts()
         {
-            ChristmasPhase phase = flow.Phase;
-            bool playing = phase == ChristmasPhase.Playing;
+            bool playing = game.Phase == BubblePhase.Playing;
             instructionText.gameObject.SetActive(playing);
             countText.gameObject.SetActive(playing);
-            countText.text = "わった かず　" + field.PoppedCount + " こ";
-            celebrationText.gameObject.SetActive(phase == ChristmasPhase.Celebrating);
-            celebrationText.rectTransform.localScale = Vector3.one * (1f + 0.06f * Mathf.Sin(Time.time * 5f));
-            // 目標まで割ったあとのカウントダウン、または10分たつ前の最後の10秒のカウントダウン
-            int countdownNumber = phase == ChristmasPhase.Countdown ? flow.GetCountdownNumber() : timer.GetCountdownNumber();
-            countdownNumber = SceneHold.IsHolding ? 0 : countdownNumber;
-            bool countdown = countdownNumber > 0;
-            countdownTitleText.gameObject.SetActive(countdown);
-            countdownNumberText.gameObject.SetActive(countdown);
-            countdownNumberText.text = countdownNumber.ToString();
-            countdownNumberText.rectTransform.localScale = Vector3.one * (phase == ChristmasPhase.Countdown ? GetCountdownPop() : GetTimerCountdownPop(countdownNumber));
+            timeText.gameObject.SetActive(playing);
+            countText.text = "われた かず　" + game.PoppedCount + " こ";
+            timeText.text = "のこり　" + Mathf.CeilToInt(game.RoundRemainingSeconds) + " びょう";
+            bool result = game.Phase == BubblePhase.Result;
+            resultText.gameObject.SetActive(result);
+            resultText.text = BubbleGame.GetResultMessage(game.PoppedCount);
+            resultText.rectTransform.localScale = Vector3.one * (1f + 0.04f * Mathf.Sin(Time.time * 5f));
+            nextTitleText.gameObject.SetActive(result && game.WillFinishAfterResult && !SceneHold.IsHolding);
             operatorText.text = BuildOperatorText();
             HoldButton.Refresh(holdButton);
-        }
-
-        private float GetTimerCountdownPop(int number)
-        {
-            float withinSecond = Mathf.Clamp01(number - timer.RemainingSeconds);
-            return Mathf.Lerp(1.5f, 1f, Mathf.Clamp01(withinSecond * 4f));
-        }
-
-        private float GetCountdownPop()
-        {
-            float withinSecond = flow.GetPhaseElapsed() % 1f;
-            return Mathf.Lerp(1.5f, 1f, Mathf.Clamp01(withinSecond * 4f));
         }
 
         private string BuildOperatorText()
@@ -386,7 +356,9 @@ namespace BallGame
             string blob = result != null ? result.DescribeLargestBlob() : string.Empty;
             string state = result != null && result.PersonDetected ? "（人を検知中）" : string.Empty;
             string click = (session.IsSimulated ? "\n模擬深度：画面をクリックするとボールが当たります" : string.Empty) + "\nＴキー：テスト用に1球当たったことにする";
-            return "シャボン玉割り　割れた数 " + field.PoppedCount + " / " + PopGoal + "　場面が替わるまで " + timer.FormatRemaining() + SceneHold.GetOperatorHint() + state + "\n" + blob + click;
+            int remaining = Mathf.CeilToInt(game.SceneRemainingSeconds);
+            string time = (remaining / 60) + ":" + (remaining % 60).ToString("00");
+            return "シャボン玉割り　" + game.RoundNumber + "回目　割れた数 " + game.PoppedCount + " / " + BubbleGame.BubbleCount + "　場面が替わるまで " + time + "（遊んでいる回は最後まで続けます）" + SceneHold.GetOperatorHint() + state + "\n" + blob + click;
         }
 
         private void OnSkyPressed(Vector2 wallUv)
@@ -402,13 +374,7 @@ namespace BallGame
 
         private void GoToNextSceneWhenFinished()
         {
-            if (SceneHold.IsHolding)
-            {
-                return;
-            }
-
-            bool timeUp = flow.Phase == ChristmasPhase.Playing && timer.IsExpired;
-            if ((flow.Phase != ChristmasPhase.Finished && !timeUp) || sceneRequested)
+            if (SceneHold.IsHolding || sceneRequested || !game.IsFinished)
             {
                 return;
             }

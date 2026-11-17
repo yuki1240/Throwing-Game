@@ -64,6 +64,7 @@ namespace BallGame
         private readonly float height;
         private readonly System.Random random;
         private readonly int targetCount;
+        private readonly bool refill;
         private readonly List<Bubble> bubbles = new List<Bubble>();
         private int nextId = 1;
         private int poppedCount;
@@ -75,8 +76,10 @@ namespace BallGame
         /// <param name="height">画面の高さ（画素）</param>
         /// <param name="random">ばらつきを決める乱数</param>
         /// <param name="targetCount">同時に浮かべる数</param>
-        public BubbleField(float width, float height, System.Random random, int targetCount = DefaultCount)
+        /// <param name="refill">割った玉や昇って消えた玉を下から補うか（false のときは、割らなかった玉が下から戻ってくるだけで、数は増えない）</param>
+        public BubbleField(float width, float height, System.Random random, int targetCount = DefaultCount, bool refill = true)
         {
+            this.refill = refill;
             this.width = width;
             this.height = height;
             this.random = random;
@@ -113,10 +116,29 @@ namespace BallGame
                 bubble.Position = new Vector2(x, y);
             }
 
+            if (!refill)
+            {
+                WrapBubblesAboveScreen();
+                return;
+            }
+
             bubbles.RemoveAll(IsAboveScreen);
             while (bubbles.Count < targetCount)
             {
                 bubbles.Add(CreateBubble(false));
+            }
+        }
+
+        // 数を増やさない場では、上へ出た玉を同じ玉のまま下へ戻す（割りそびれても、また届く所に来る）
+        private void WrapBubblesAboveScreen()
+        {
+            foreach (Bubble bubble in bubbles)
+            {
+                if (IsAboveScreen(bubble))
+                {
+                    float y = -bubble.Radius - Mathf.Lerp(0f, 200f, (float)random.NextDouble());
+                    bubble.Position = new Vector2(bubble.Position.x, y);
+                }
             }
         }
 
