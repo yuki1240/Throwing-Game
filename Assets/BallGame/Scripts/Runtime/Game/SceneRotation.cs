@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace BallGame
 {
     /// <summary>
-    /// 遊ぶ場面（クリスマス・草原・紅葉の山）を、ランダムな順に替えるための決まりです。
+    /// 遊ぶ場面（クリスマス・草原・紅葉の山・シャボン玉割り）を、ランダムな順に替えるための決まりです。
     /// 次の場面は、今の場面以外から、ランダムに1つ選びます（同じ場面が2回つづくことはありません）。
     /// 画面に依存しないので、テストで確かめられます。
     /// </summary>
@@ -19,7 +19,10 @@ namespace BallGame
         /// <summary>紅葉の山のシーン名。</summary>
         public const string AutumnScene = "Autumn";
 
-        private static readonly string[] Scenes = { ChristmasScene, MeadowScene, AutumnScene };
+        /// <summary>シャボン玉割りのシーン名。</summary>
+        public const string BubbleScene = "Bubble";
+
+        private static readonly string[] Scenes = { ChristmasScene, MeadowScene, AutumnScene, BubbleScene };
 
         private static readonly Random SharedRandom = new Random();
 
@@ -61,12 +64,12 @@ namespace BallGame
         /// <returns>呼び名</returns>
         public static string GetOperatorName(string sceneName)
         {
-            return sceneName == ChristmasScene ? "クリスマス" : sceneName == MeadowScene ? "草原" : sceneName == AutumnScene ? "紅葉の山" : sceneName;
+            return sceneName == ChristmasScene ? "クリスマス" : sceneName == MeadowScene ? "草原" : sceneName == AutumnScene ? "紅葉の山" : sceneName == BubbleScene ? "シャボン玉割り" : sceneName;
         }
 
         private static string GetKidsName(string sceneName)
         {
-            return sceneName == ChristmasScene ? "クリスマス" : sceneName == MeadowScene ? "おはなばたけ" : sceneName == AutumnScene ? "もみじの やま" : sceneName;
+            return sceneName == ChristmasScene ? "クリスマス" : sceneName == MeadowScene ? "おはなばたけ" : sceneName == AutumnScene ? "もみじの やま" : sceneName == BubbleScene ? "シャボンだま" : sceneName;
         }
     }
 }

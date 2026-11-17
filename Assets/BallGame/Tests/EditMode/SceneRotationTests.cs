@@ -13,7 +13,7 @@ namespace BallGame.Tests
         public void 次の場面は今の場面と同じにならない()
         {
             Random random = new Random(1);
-            string[] scenes = { SceneRotation.ChristmasScene, SceneRotation.MeadowScene, SceneRotation.AutumnScene };
+            string[] scenes = { SceneRotation.ChristmasScene, SceneRotation.MeadowScene, SceneRotation.AutumnScene, SceneRotation.BubbleScene };
             foreach (string current in scenes)
             {
                 for (int i = 0; i < 200; i++)
@@ -24,7 +24,7 @@ namespace BallGame.Tests
         }
 
         [Test]
-        public void 残りの2つの場面がどちらも選ばれる()
+        public void 残りの3つの場面がどちらも選ばれる()
         {
             Random random = new Random(2);
             HashSet<string> seen = new HashSet<string>();
@@ -33,7 +33,8 @@ namespace BallGame.Tests
                 seen.Add(SceneRotation.PickNext(SceneRotation.MeadowScene, random));
             }
 
-            Assert.That(seen.Count, Is.EqualTo(2));
+            Assert.That(seen.Count, Is.EqualTo(3));
+            Assert.That(seen.Contains(SceneRotation.BubbleScene), Is.True);
             Assert.That(seen.Contains(SceneRotation.ChristmasScene), Is.True);
             Assert.That(seen.Contains(SceneRotation.AutumnScene), Is.True);
         }
@@ -44,6 +45,7 @@ namespace BallGame.Tests
             Assert.That(SceneRotation.GetKidsTitle(SceneRotation.MeadowScene), Is.EqualTo("つぎは おはなばたけ！"));
             Assert.That(SceneRotation.GetKidsTitle(SceneRotation.AutumnScene), Is.EqualTo("つぎは もみじの やま！"));
             Assert.That(SceneRotation.GetKidsTitle(SceneRotation.ChristmasScene), Is.EqualTo("つぎは クリスマス！"));
+            Assert.That(SceneRotation.GetKidsTitle(SceneRotation.BubbleScene), Is.EqualTo("つぎは シャボンだま！"));
         }
     }
 }
