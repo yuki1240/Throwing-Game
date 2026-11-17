@@ -16,6 +16,7 @@ namespace BallGame
 
         private static readonly Color32 InvalidColor = new Color32(20, 24, 60, 255);
         private static readonly Color32 CandidateColor = new Color32(190, 140, 40, 255);
+        private static readonly Color32 BlindColor = new Color32(170, 60, 200, 255);
         private static readonly Color32 BallColor = new Color32(255, 20, 20, 255);
         private static readonly Color32 OutsideTint = new Color32(0, 0, 0, 255);
 
@@ -43,8 +44,9 @@ namespace BallGame
         /// <param name="detector">四隅の内側を暗くしないための検知器（null 可）</param>
         /// <param name="ball">ボールとして検知できた画素（null 可）。赤く表示します</param>
         /// <param name="timeSeconds">今の時刻（秒。赤い表示を少し残すために使う）</param>
+        /// <param name="blind">ボールを検知できない画素（null 可）。紫を重ねます</param>
         /// <returns>描いた画像</returns>
-        public Texture2D Render(ushort[] depth, int width, int height, MountOrientation mount, bool[] candidates, HitDetector detector, bool[] ball = null, float timeSeconds = 0f)
+        public Texture2D Render(ushort[] depth, int width, int height, MountOrientation mount, bool[] candidates, HitDetector detector, bool[] ball = null, float timeSeconds = 0f, bool[] blind = null)
         {
             EnsureTexture(width, height);
             bool flip = MountGeometry.IsPreviewFlippedVertically(mount);
@@ -62,7 +64,8 @@ namespace BallGame
                     }
 
                     bool isBall = ballUntil[index] > timeSeconds;
-                    pixels[textureRow * width + x] = isBall ? BallColor : GetColor(depth[index], candidates, index, showMask && !detector.IsInside(index));
+                    Color32 color = isBall ? BallColor : GetColor(depth[index], candidates, index, showMask && !detector.IsInside(index));
+                    pixels[textureRow * width + x] = !isBall && blind != null && index < blind.Length && blind[index] ? Color32.Lerp(color, BlindColor, 0.6f) : color;
                 }
             }
 

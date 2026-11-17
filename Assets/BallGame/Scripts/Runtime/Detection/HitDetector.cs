@@ -37,6 +37,9 @@ namespace BallGame
         private bool[] filtered;
         private bool[] visited;
         private bool[] ballMask;
+        private bool[] blindMask;
+        private int blindCount;
+        private int insideCount;
         private WallPlane plane;
         private bool isConfigured;
         private int frameIndex;
@@ -111,6 +114,7 @@ namespace BallGame
             normalDotRay = LocalWallNormals.Build(baseline, width, height, intrinsics, plane);
             sizeWeightFactor = ComputeSizeWeightFactor(intrinsics);
             BuildNoiseTables(data.BaselineNoise);
+            BuildBlindMask();
             isConfigured = true;
             return true;
         }
@@ -201,6 +205,38 @@ namespace BallGame
             filtered = new bool[count];
             visited = new bool[count];
             ballMask = new bool[count];
+            blindMask = new bool[count];
+        }
+
+        /// <summary>
+        /// ボールを検知できない画素（四隅の内側で、基準の深度が取れていない、または基準を録る間に揺れた画素）。
+        /// 校正画面のプレビューで紫に出して、深度が取れていない所を確かめるのに使います。
+        /// </summary>
+        public bool[] BlindMask
+        {
+            get { return blindMask; }
+        }
+
+        /// <summary>
+        /// 四隅の内側のうち、ボールを検知できない画素の割合（0〜1）。
+        /// </summary>
+        public float BlindRatio
+        {
+            get { return insideCount == 0 ? 0f : blindCount / (float)insideCount; }
+        }
+
+        private void BuildBlindMask()
+        {
+            blindCount = 0;
+            insideCount = 0;
+            for (int i = 0; i < blindMask.Length; i++)
+            {
+                bool inside = insideMask[i];
+                bool blind = inside && (baseline[i] == 0 || unstablePixel[i]);
+                blindMask[i] = blind;
+                insideCount += inside ? 1 : 0;
+                blindCount += blind ? 1 : 0;
+            }
         }
 
         private void BuildNoiseTables(ushort[] noise)

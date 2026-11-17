@@ -396,7 +396,7 @@ namespace BallGame
             bool[] ball = result != null && session.IsSavedCalibrationUsable ? result.BallMask : null;
             HitDetector detector = session.IsSavedCalibrationUsable ? session.Detector : null;
             preview.color = Color.white;
-            preview.texture = previewRenderer.Render(session.LatestDepth, session.FrameWidth, session.FrameHeight, session.Data.Mount, candidates, detector, ball, Time.unscaledTime);
+            preview.texture = previewRenderer.Render(session.LatestDepth, session.FrameWidth, session.FrameHeight, session.Data.Mount, candidates, detector, ball, Time.unscaledTime, detector != null && detector.IsConfigured ? detector.BlindMask : null);
         }
 
         private void RefreshAll()
@@ -554,8 +554,9 @@ namespace BallGame
                 return string.Empty;
             }
 
+            string blind = session.Detector != null && session.Detector.IsConfigured ? "\n検知できない所（紫）：" + Mathf.RoundToInt(session.Detector.BlindRatio * 100f) + "%（基準の深度が取れていない／基準を録る間に揺れた画素）" : string.Empty;
             string person = result.PersonDetected ? "（人を検知中）" : result.InCooldown ? "（人が去ったあとの待ち時間）" : string.Empty;
-            return "変化画素：" + result.ChangedPixelCount + "（2m換算 " + result.ChangedArea.ToString("F0") + "）" + person + "\n" + result.DescribeLargestBlob();
+            return "変化画素：" + result.ChangedPixelCount + "（2m換算 " + result.ChangedArea.ToString("F0") + "）" + person + "\n" + result.DescribeLargestBlob() + blind;
         }
     }
 }

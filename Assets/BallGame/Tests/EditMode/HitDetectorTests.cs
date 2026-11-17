@@ -144,6 +144,13 @@ namespace BallGame.Tests
         }
 
         [Test]
+        public void きれいな壁なら検知できない画素はない()
+        {
+            Assert.That(detector.BlindMask.Length, Is.EqualTo(scene.Width * scene.Height));
+            Assert.That(detector.BlindRatio, Is.EqualTo(0f).Within(0.05f));
+        }
+
+        [Test]
         public void 何も無ければ赤い表示はない()
         {
             DetectionResult result = detector.Process(scene.EmptyFrame(), 0f);
