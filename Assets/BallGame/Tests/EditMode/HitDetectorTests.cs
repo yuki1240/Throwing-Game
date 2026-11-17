@@ -304,6 +304,29 @@ namespace BallGame.Tests
         }
 
         [Test]
+        public void 深度0から見え始めた軌跡でも壁に着いた点で出す()
+        {
+            float[] heights = { -1f, -1f, 100f, 140f, 140f, 110f, 70f, 110f, 140f, 140f };
+            float[] xs = { 40f, 60f, 80f, 100f, 120f, 150f, 180f, 170f, 160f, 150f };
+            int total = 0;
+            float hitX = 0f;
+            for (int i = 0; i < heights.Length; i++)
+            {
+                ushort[] frame = scene.EmptyFrame();
+                scene.DrawDisc(frame, xs[i], 100f + i * 6f, 4.5f, heights[i]);
+                DetectionResult result = detector.Process(frame, i * 0.033f);
+                total += result.Hits.Count;
+                if (result.Hits.Count > 0)
+                {
+                    hitX = result.Hits[0].Pixel.x;
+                }
+            }
+
+            Assert.That(total, Is.EqualTo(1));
+            Assert.That(hitX, Is.EqualTo(180f).Within(2f));
+        }
+
+        [Test]
         public void 軌跡が途切れたあとの次の1球はまた出す()
         {
             ushort[] ball = scene.EmptyFrame();

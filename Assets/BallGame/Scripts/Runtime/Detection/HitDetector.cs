@@ -29,8 +29,11 @@ namespace BallGame
             public bool Decided;
             public bool Direct;
             public bool Dipped;
+            public bool FlightSeen;
+            public DetectedHit FirstHit;
             public float BestStrength = float.MaxValue;
             public int BestFrame;
+            public bool HasBest;
             public DetectedHit BestHit;
         }
 
@@ -597,16 +600,26 @@ namespace BallGame
 
             float peak = blob.PeakStrength;
             bool valid = Mathf.Abs(peak - settings.ZeroDepthStrength) > 0.01f;
+            if (burst.UndecidedFrames == 0 && !burst.Decided && isNew)
+            {
+                burst.FirstHit = CreateHit(blob);
+            }
+
             if (!burst.Decided && valid)
             {
+                // 深度 0 の画素から見え始めたものは、遠くから飛んできたボールとみなす
                 burst.Decided = true;
-                burst.Direct = peak < GetFlightStrength();
+                burst.Direct = burst.UndecidedFrames == 0 && peak < GetFlightStrength();
             }
             else if (!burst.Decided && ++burst.UndecidedFrames >= settings.ZeroOnlyFrames)
             {
-                // 深度 0 のままずっと留まる物体は、壁の近くにあるものとして扱う
+                // 深度 0 のままずっと留まる物体は、見え始めの位置で当たりにする
                 burst.Decided = true;
                 burst.Direct = true;
+                burst.Emitted = true;
+                result.Hits.Add(burst.FirstHit);
+                track.Emitted = true;
+                return;
             }
 
             if (burst.Decided && burst.Direct)
@@ -626,6 +639,15 @@ namespace BallGame
                 return;
             }
 
+            if (peak >= GetFlightStrength() && !burst.FlightSeen)
+            {
+                // 遠くから来たことが分かった。見え始めの不安定な値は捨てて、ここから壁に近づく点を探す
+                burst.FlightSeen = true;
+                burst.BestStrength = float.MaxValue;
+                burst.HasBest = false;
+                burst.Dipped = false;
+            }
+
             UpdateBestContact(burst, blob);
             if (ShouldEmitContact(burst, peak))
             {
@@ -642,13 +664,14 @@ namespace BallGame
 
             burst.BestStrength = blob.PeakStrength;
             burst.BestFrame = frameIndex;
+            burst.HasBest = true;
             burst.BestHit = CreateHit(blob);
-            burst.Dipped = blob.PeakStrength < GetFlightStrength();
+            burst.Dipped = burst.FlightSeen && blob.PeakStrength < GetFlightStrength();
         }
 
         private bool ShouldEmitContact(Burst burst, float currentPeak)
         {
-            if (!burst.Dipped)
+            if (!burst.Dipped && burst.FlightSeen)
             {
                 return false;
             }
@@ -703,7 +726,7 @@ namespace BallGame
             foreach (Burst burst in bursts)
             {
                 bool ended = frameIndex - burst.LastFrame > settings.BurstGapFrames;
-                if (ended && !burst.Emitted && burst.Decided && !burst.Direct && burst.Dipped)
+                if (ended && !burst.Emitted && burst.Decided && !burst.Direct && burst.HasBest && (burst.Dipped || !burst.FlightSeen))
                 {
                     EmitBurst(burst);
                 }
