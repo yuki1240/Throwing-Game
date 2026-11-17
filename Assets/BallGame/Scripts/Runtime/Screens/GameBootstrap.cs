@@ -10,7 +10,7 @@ namespace BallGame
     /// Game シーンの起動用オブジェクト。実行時に 1920×1080 の Canvas でゲーム画面を組み立てます。
     /// 四隅で囲った範囲を背景全体へ引き伸ばし、当たった位置に花か演出を出します。
     /// スペースキーで上部の操作・HIT 表示・校正へ戻るボタン・壁からの距離をまとめて隠します。
-    /// ボールが10回当たると、または10分たつと、10秒のカウントダウンのあと次の場面（クリスマス）へ移ります。
+    /// ボールが10回当たると、または10分たつと、10秒のカウントダウンのあと次の場面（紅葉の山）へ移ります。
     /// 10分の最後の1分に当たったときは、さらに1分待ちます。
     /// </summary>
     public sealed class GameBootstrap : MonoBehaviour
@@ -18,8 +18,8 @@ namespace BallGame
         /// <summary>Calibration シーンの名前。</summary>
         public const string CalibrationSceneName = "Calibration";
 
-        /// <summary>次の場面（クリスマス）のシーン名。</summary>
-        public const string NextSceneName = "Christmas";
+        /// <summary>次の場面（紅葉の山）のシーン名。</summary>
+        public const string NextSceneName = "Autumn";
 
         /// <summary>切替間隔の1回の増減（秒）。</summary>
         public const float IntervalStepSeconds = 60f;
@@ -156,7 +156,7 @@ namespace BallGame
         {
             Color gold = new Color(1f, 0.92f, 0.35f, 1f);
             celebrationText = UiFactory.PlaceKidsText(parent, "おはなが いっぱい！", 120, gold, new Vector2(960f, 600f), new Vector2(1900f, 200f));
-            countdownTitleText = UiFactory.PlaceKidsText(parent, "つぎは クリスマス！", 80, Color.white, new Vector2(960f, 760f), new Vector2(1600f, 140f));
+            countdownTitleText = UiFactory.PlaceKidsText(parent, "つぎは もみじの やま！", 80, Color.white, new Vector2(960f, 760f), new Vector2(1600f, 140f));
             countdownNumberText = UiFactory.PlaceKidsText(parent, string.Empty, 340, gold, new Vector2(960f, 440f), new Vector2(600f, 420f));
         }
 
@@ -452,7 +452,7 @@ namespace BallGame
 
             string clickHint = session.IsSimulated ? "\n模擬深度：画面をクリックするとボールが当たります" : string.Empty;
             string blob = result != null ? "\n" + result.DescribeLargestBlob() : string.Empty;
-            string sceneChange = "　クリスマスへ：あと" + flow.Remaining + "球 / " + timer.FormatRemaining();
+            string sceneChange = "　紅葉の山へ：あと" + flow.Remaining + "球 / " + timer.FormatRemaining();
             return "HIT " + hitCount + sceneChange + state + "\n最後：" + lastHitDescription + blob + clickHint;
         }
 

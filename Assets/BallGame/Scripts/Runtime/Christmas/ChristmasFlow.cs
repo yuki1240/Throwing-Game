@@ -116,6 +116,22 @@ namespace BallGame
         }
 
         /// <summary>
+        /// 回数ではなく別の条件（山が全部紅葉した、など）で完成したときに、お祝いへ進めます。
+        /// 飾り付け中でなければ何もしません。
+        /// </summary>
+        /// <returns>お祝いへ進んだとき true</returns>
+        public bool Complete()
+        {
+            if (phase != ChristmasPhase.Playing)
+            {
+                return false;
+            }
+
+            ChangePhase(ChristmasPhase.Celebrating);
+            return true;
+        }
+
+        /// <summary>
         /// 時間を進めます。完成を出し終えたらカウントダウン、数え終えたら終わりにします。
         /// </summary>
         /// <param name="deltaSeconds">進める秒</param>
