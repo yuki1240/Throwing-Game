@@ -22,6 +22,12 @@ namespace BallGame
         /// <summary>校正のシーン名。</summary>
         public const string CalibrationSceneName = "Calibration";
 
+        /// <summary>「あと N こ！」の文字の大きさ。</summary>
+        public const int CounterFontSize = 110;
+
+        /// <summary>固定モード中の「デバックモード」の文字の大きさ（小さく目立たせない）。</summary>
+        public const int DebugLabelFontSize = 40;
+
         /// <summary>お祝いの演出を出す間隔（秒）。</summary>
         public const float CelebrationBurstInterval = 0.35f;
 
@@ -275,7 +281,7 @@ namespace BallGame
         private void BuildKidsTexts(Transform parent)
         {
             instructionText = UiFactory.PlaceKidsText(parent, "ボールを かべに あてて ツリーを かざろう！", 58, Color.white, new Vector2(960f, 1015f), new Vector2(1800f, 90f));
-            counterText = UiFactory.PlaceKidsText(parent, string.Empty, 110, GoldText, new Vector2(330f, 640f), new Vector2(560f, 300f));
+            counterText = UiFactory.PlaceKidsText(parent, string.Empty, CounterFontSize, GoldText, new Vector2(330f, 640f), new Vector2(560f, 300f));
             celebrationText = UiFactory.PlaceKidsText(parent, "クリスマスツリーの完成～！", 120, GoldText, new Vector2(960f, 520f), new Vector2(1900f, 200f));
             countdownTitleText = UiFactory.PlaceKidsText(parent, SceneRotation.GetKidsTitle(nextSceneName), 80, Color.white, new Vector2(960f, 760f), new Vector2(1600f, 140f));
             countdownNumberText = UiFactory.PlaceKidsText(parent, string.Empty, 340, GoldText, new Vector2(960f, 440f), new Vector2(600f, 420f));
@@ -539,7 +545,8 @@ namespace BallGame
             bool playing = phase == ChristmasPhase.Playing;
             instructionText.gameObject.SetActive(playing);
             counterText.gameObject.SetActive(playing);
-            counterText.text = SceneHold.IsHolding ? "デバック\nモード" : "あと\n" + flow.Remaining + "こ！";
+            counterText.fontSize = SceneHold.IsHolding ? DebugLabelFontSize : CounterFontSize;
+            counterText.text = SceneHold.IsHolding ? "デバックモード" : "あと\n" + flow.Remaining + "こ！";
             celebrationText.gameObject.SetActive(phase == ChristmasPhase.Celebrating);
             celebrationText.rectTransform.localScale = Vector3.one * (1f + 0.06f * Mathf.Sin(Time.time * 5f));
             // 10球そろったあとのカウントダウン、または10分たつ前の最後の10秒のカウントダウン
