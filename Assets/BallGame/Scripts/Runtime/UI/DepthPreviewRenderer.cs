@@ -3,7 +3,7 @@ using UnityEngine;
 namespace BallGame
 {
     /// <summary>
-    /// 深度をプレビュー用の画像にします。近いほど明るく、無効（0）は紺色、検知の候補は赤で重ねます。
+    /// 深度をプレビュー用の画像にします。近いほど明るく、無効（0）は紺色、変化した所は琥珀色、ボールとして検知できた所は赤で重ねます。
     /// 真下設置では遠い側が画面の上に来るように上下を入れ替えて表示します（データは反転しません）。
     /// </summary>
     public sealed class DepthPreviewRenderer
@@ -15,11 +15,16 @@ namespace BallGame
         public const float FarMm = 4500f;
 
         private static readonly Color32 InvalidColor = new Color32(20, 24, 60, 255);
-        private static readonly Color32 CandidateColor = new Color32(235, 40, 40, 255);
+        private static readonly Color32 CandidateColor = new Color32(190, 140, 40, 255);
+        private static readonly Color32 BallColor = new Color32(255, 20, 20, 255);
         private static readonly Color32 OutsideTint = new Color32(0, 0, 0, 255);
+
+        /// <summary>赤い表示を、ボールが見えなくなってからも残す秒数（一瞬で消えて見逃さないため）。</summary>
+        public const float BallHoldSeconds = 0.6f;
 
         private Texture2D texture;
         private Color32[] pixels;
+        private float[] ballUntil;
 
         /// <summary>プレビューの画像。</summary>
         public Texture2D Texture
@@ -36,8 +41,10 @@ namespace BallGame
         /// <param name="mount">設置向き（表示の上下に使う）</param>
         /// <param name="candidates">候補画素（null 可）</param>
         /// <param name="detector">四隅の内側を暗くしないための検知器（null 可）</param>
+        /// <param name="ball">ボールとして検知できた画素（null 可）。赤く表示します</param>
+        /// <param name="timeSeconds">今の時刻（秒。赤い表示を少し残すために使う）</param>
         /// <returns>描いた画像</returns>
-        public Texture2D Render(ushort[] depth, int width, int height, MountOrientation mount, bool[] candidates, HitDetector detector)
+        public Texture2D Render(ushort[] depth, int width, int height, MountOrientation mount, bool[] candidates, HitDetector detector, bool[] ball = null, float timeSeconds = 0f)
         {
             EnsureTexture(width, height);
             bool flip = MountGeometry.IsPreviewFlippedVertically(mount);
@@ -49,7 +56,13 @@ namespace BallGame
                 for (int x = 0; x < width; x++)
                 {
                     int index = y * width + x;
-                    pixels[textureRow * width + x] = GetColor(depth[index], candidates, index, showMask && !detector.IsInside(index));
+                    if (ball != null && index < ball.Length && ball[index])
+                    {
+                        ballUntil[index] = timeSeconds + BallHoldSeconds;
+                    }
+
+                    bool isBall = ballUntil[index] > timeSeconds;
+                    pixels[textureRow * width + x] = isBall ? BallColor : GetColor(depth[index], candidates, index, showMask && !detector.IsInside(index));
                 }
             }
 
@@ -82,6 +95,7 @@ namespace BallGame
             texture.filterMode = FilterMode.Point;
             texture.wrapMode = TextureWrapMode.Clamp;
             pixels = new Color32[width * height];
+            ballUntil = new float[width * height];
         }
 
         private static Color32 GetColor(ushort depth, bool[] candidates, int index, bool outside)

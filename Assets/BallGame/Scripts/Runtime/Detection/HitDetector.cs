@@ -36,6 +36,7 @@ namespace BallGame
         private float sizeWeightFactor;
         private bool[] filtered;
         private bool[] visited;
+        private bool[] ballMask;
         private WallPlane plane;
         private bool isConfigured;
         private int frameIndex;
@@ -144,6 +145,7 @@ namespace BallGame
             ExtractBlobs();
             RecordLargestBlob();
             result.CandidateMask = visited;
+            MarkBallPixels();
             if (IsPersonFrame())
             {
                 HandlePersonFrame(timeSeconds);
@@ -198,6 +200,7 @@ namespace BallGame
             sizeWeight = new float[count];
             filtered = new bool[count];
             visited = new bool[count];
+            ballMask = new bool[count];
         }
 
         private void BuildNoiseTables(ushort[] noise)
@@ -408,6 +411,45 @@ namespace BallGame
             }
 
             result.LargestBlobRejectReason = result.HasLargestBlob ? GetRejectReason(result.LargestBlob) : string.Empty;
+        }
+
+        // プレビューで赤く出すため、ボールとして採用できる塊の画素に印を付ける（人のフレームでは付けない）
+        private void MarkBallPixels()
+        {
+            System.Array.Clear(ballMask, 0, ballMask.Length);
+            result.BallMask = ballMask;
+            result.HasBall = false;
+            if (IsPersonFrame())
+            {
+                return;
+            }
+
+            foreach (DepthBlob blob in result.Blobs)
+            {
+                if (IsBallLike(blob))
+                {
+                    result.HasBall |= MarkBlobPixels(blob);
+                }
+            }
+        }
+
+        private bool MarkBlobPixels(DepthBlob blob)
+        {
+            bool marked = false;
+            for (int y = blob.MinY; y <= blob.MaxY; y++)
+            {
+                for (int x = blob.MinX; x <= blob.MaxX; x++)
+                {
+                    int index = y * width + x;
+                    if (visited[index])
+                    {
+                        ballMask[index] = true;
+                        marked = true;
+                    }
+                }
+            }
+
+            return marked;
         }
 
         private bool IsPersonFrame()

@@ -119,6 +119,12 @@ namespace BallGame
         /// <summary>候補画素（プレビュー表示用。次のフレームで上書きされます）。</summary>
         public bool[] CandidateMask;
 
+        /// <summary>ボールとして採用できる塊の画素（プレビューで赤く表示する。次のフレームで上書きされます）。</summary>
+        public bool[] BallMask;
+
+        /// <summary>BallMask に1画素でもあるか。</summary>
+        public bool HasBall;
+
         /// <summary>
         /// 中身を空にします。
         /// </summary>
@@ -131,6 +137,7 @@ namespace BallGame
             ChangedPixelCount = 0;
             ChangedArea = 0f;
             HasLargestBlob = false;
+            HasBall = false;
             LargestBlobRejectReason = string.Empty;
         }
 

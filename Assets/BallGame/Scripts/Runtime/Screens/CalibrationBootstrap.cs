@@ -393,9 +393,10 @@ namespace BallGame
         {
             DetectionResult result = session.LatestResult;
             bool[] candidates = result != null && session.IsSavedCalibrationUsable ? result.CandidateMask : null;
+            bool[] ball = result != null && session.IsSavedCalibrationUsable ? result.BallMask : null;
             HitDetector detector = session.IsSavedCalibrationUsable ? session.Detector : null;
             preview.color = Color.white;
-            preview.texture = previewRenderer.Render(session.LatestDepth, session.FrameWidth, session.FrameHeight, session.Data.Mount, candidates, detector);
+            preview.texture = previewRenderer.Render(session.LatestDepth, session.FrameWidth, session.FrameHeight, session.Data.Mount, candidates, detector, ball, Time.unscaledTime);
         }
 
         private void RefreshAll()

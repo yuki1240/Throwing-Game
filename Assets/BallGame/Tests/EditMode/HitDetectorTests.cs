@@ -117,6 +117,40 @@ namespace BallGame.Tests
         }
 
         [Test]
+        public void ボールとして検知できた塊だけが赤い表示の対象になる()
+        {
+            ushort[] frame = scene.EmptyFrame();
+            scene.DrawDisc(frame, 100f, 80f, 4.5f, 70f);
+
+            DetectionResult result = detector.Process(frame, 0f);
+
+            Assert.That(result.HasBall, Is.True);
+            Assert.That(result.BallMask[80 * scene.Width + 100], Is.True, "ボールの中心");
+            Assert.That(result.BallMask[200 * scene.Width + 300], Is.False, "ボールの無い所");
+        }
+
+        [Test]
+        public void 何も無ければ赤い表示はない()
+        {
+            DetectionResult result = detector.Process(scene.EmptyFrame(), 0f);
+
+            Assert.That(result.HasBall, Is.False);
+        }
+
+        [Test]
+        public void 人のフレームでは赤い表示を出さない()
+        {
+            ushort[] frame = scene.EmptyFrame();
+            scene.DrawRect(frame, 60, 40, 30, 90, 80f);
+            scene.DrawDisc(frame, 250f, 60f, 4.5f, 70f);
+
+            DetectionResult result = detector.Process(frame, 0f);
+
+            Assert.That(result.PersonDetected, Is.True);
+            Assert.That(result.HasBall, Is.False);
+        }
+
+        [Test]
         public void 縦横が80画素を超える塊は人として除外する()
         {
             ushort[] frame = scene.EmptyFrame();
