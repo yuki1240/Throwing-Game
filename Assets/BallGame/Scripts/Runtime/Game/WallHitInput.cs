@@ -35,6 +35,29 @@ namespace BallGame
         }
 
         /// <summary>
+        /// いまボールとして検知されている場所を、壁座標で返します（当たりかどうかに関係なく、見えているあいだ毎フレーム）。
+        /// 固定モードで、ボールがどこにあると見られているかを出すのに使います。
+        /// </summary>
+        /// <param name="session">セッション</param>
+        /// <returns>壁座標の一覧（無ければ空）</returns>
+        public static List<Vector2> CollectBallPositions(CalibrationSession session)
+        {
+            List<Vector2> positions = new List<Vector2>();
+            DetectionResult result = session.LatestResult;
+            if (!session.HasNewFrame || result == null || !session.HasHomography)
+            {
+                return positions;
+            }
+
+            foreach (Vector2 imageUv in result.BallImageUvs)
+            {
+                positions.Add(ToWall(session, imageUv));
+            }
+
+            return positions;
+        }
+
+        /// <summary>
         /// 模擬深度のとき、画面のクリック（壁座標）をボールとして入れます。
         /// </summary>
         /// <param name="session">セッション</param>

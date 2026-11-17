@@ -62,6 +62,8 @@ namespace BallGame
         private Text operatorText;
         private GameObject overlay;
         private Button holdButton;
+        private BallMarker markers;
+        private bool markersShown;
         private float nextBurstAt;
         private string nextSceneName;
         private bool sceneRequested;
@@ -158,6 +160,7 @@ namespace BallGame
             session = CalibrationSession.EnsureExists();
             HandleKeyboard();
             HandleHits();
+            UpdateBallMarkers();
             flow.Tick(Time.deltaTime);
             TickTimer();
             AnimateCelebration();
@@ -174,6 +177,7 @@ namespace BallGame
             star = BuildStar(canvas.transform);
             star.gameObject.SetActive(false);
             spawner = BuildEffectLayer(canvas.transform);
+            markers = BallMarker.Create(canvas.transform);
             BuildKidsTexts(canvas.transform);
             BuildOperatorOverlay(canvas.transform);
         }
@@ -327,6 +331,26 @@ namespace BallGame
             flow.SetGoal(SceneHold.GetGoal(SceneHold.TreeGoal));
         }
 
+        private void UpdateBallMarkers()
+        {
+            if (!SceneHold.IsHolding)
+            {
+                if (markersShown)
+                {
+                    markers.Clear();
+                    markersShown = false;
+                }
+
+                return;
+            }
+
+            markersShown = true;
+            foreach (Vector2 position in WallHitInput.CollectBallPositions(session))
+            {
+                markers.Mark(position);
+            }
+        }
+
         private void HandleHits()
         {
             foreach (Vector2 wallUv in WallHitInput.CollectHits(session, "Christmas"))
@@ -337,6 +361,13 @@ namespace BallGame
 
         private void OnWallHit(Vector2 wallUv)
         {
+            if (SceneHold.IsHolding)
+            {
+                // 固定モード：エフェクトも飾りも出さず、ボールのいる場所だけ見せる
+                markers.Mark(wallUv);
+                return;
+            }
+
             if (flow.Phase == ChristmasPhase.Playing)
             {
                 // 最後の1分に当たったときは、場面を替える時間が1分延びる

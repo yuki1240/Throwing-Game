@@ -45,6 +45,8 @@ namespace BallGame
         private Text distanceText;
         private Text hitText;
         private Button holdButton;
+        private BallMarker markers;
+        private bool markersShown;
         private Text messageText;
         private Button randomButton;
         private Button fixedButton;
@@ -150,6 +152,7 @@ namespace BallGame
             Canvas canvas = UiFactory.CreateCanvas("GameCanvas", 0);
             BuildBackground(canvas.transform);
             BuildEffectLayer(canvas.transform);
+            markers = BallMarker.Create(canvas.transform);
             overlay = UiFactory.CreateRect(canvas.transform, "Overlay（スペースで隠す）").gameObject;
             UiFactory.Stretch((RectTransform)overlay.transform);
             BuildTopBar(overlay.transform);
@@ -293,8 +296,35 @@ namespace BallGame
             flow.SetGoal(SceneHold.GetGoal(SceneHold.EndlessGoal));
         }
 
+        private void UpdateBallMarkers()
+        {
+            if (!SceneHold.IsHolding)
+            {
+                if (markersShown)
+                {
+                    markers.Clear();
+                    markersShown = false;
+                }
+
+                return;
+            }
+
+            markersShown = true;
+            foreach (Vector2 position in WallHitInput.CollectBallPositions(session))
+            {
+                markers.Mark(position);
+            }
+        }
+
         private void ProcessHits()
         {
+            UpdateBallMarkers();
+            if (SceneHold.IsHolding)
+            {
+                // 固定モード：花もエフェクトも出さず、ボールのいる場所だけ見せる
+                return;
+            }
+
             DetectionResult result = session.LatestResult;
             if (!session.HasNewFrame || result == null || !session.HasHomography)
             {

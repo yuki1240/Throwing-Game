@@ -130,6 +130,20 @@ namespace BallGame.Tests
         }
 
         [Test]
+        public void ボールの重心が画像の割合で分かる()
+        {
+            ushort[] frame = scene.EmptyFrame();
+            scene.DrawDisc(frame, 100f, 80f, 4.5f, 70f);
+
+            DetectionResult result = detector.Process(frame, 0f);
+
+            Assert.That(result.BallImageUvs.Count, Is.EqualTo(1));
+            Assert.That(result.BallImageUvs[0].x, Is.EqualTo(100f / scene.Width).Within(0.01f));
+            Assert.That(result.BallImageUvs[0].y, Is.EqualTo(80f / scene.Height).Within(0.01f));
+            Assert.That(detector.Process(scene.EmptyFrame(), 0.033f).BallImageUvs.Count, Is.EqualTo(0));
+        }
+
+        [Test]
         public void 何も無ければ赤い表示はない()
         {
             DetectionResult result = detector.Process(scene.EmptyFrame(), 0f);

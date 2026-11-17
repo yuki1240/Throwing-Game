@@ -429,6 +429,7 @@ namespace BallGame
                 if (IsBallLike(blob))
                 {
                     result.HasBall |= MarkBlobPixels(blob);
+                    result.BallImageUvs.Add(new Vector2((blob.CentroidX + 0.5f) / width, (blob.CentroidY + 0.5f) / height));
                 }
             }
         }

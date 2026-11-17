@@ -45,6 +45,8 @@ namespace BallGame
         private Text operatorText;
         private GameObject overlay;
         private Button holdButton;
+        private BallMarker markers;
+        private bool markersShown;
         private float nextRefreshAt;
         private float nextBurstAt;
         private string nextSceneName;
@@ -66,6 +68,7 @@ namespace BallGame
             session = CalibrationSession.EnsureExists();
             HandleKeyboard();
             HandleHits();
+            UpdateBallMarkers();
             TickColoring();
             flow.Tick(Time.deltaTime);
             TickTimer();
@@ -111,6 +114,7 @@ namespace BallGame
             BuildLeafFall(canvas.transform);
             leafLayer = CreateFullLayer(canvas.transform, "Leaves");
             spawner = BuildEffectLayer(canvas.transform);
+            markers = BallMarker.Create(canvas.transform);
             BuildKidsTexts(canvas.transform);
             BuildOperatorOverlay(canvas.transform);
         }
@@ -215,6 +219,26 @@ namespace BallGame
             flow.SetGoal(SceneHold.GetGoal(SceneHold.EndlessGoal));
         }
 
+        private void UpdateBallMarkers()
+        {
+            if (!SceneHold.IsHolding)
+            {
+                if (markersShown)
+                {
+                    markers.Clear();
+                    markersShown = false;
+                }
+
+                return;
+            }
+
+            markersShown = true;
+            foreach (Vector2 position in WallHitInput.CollectBallPositions(session))
+            {
+                markers.Mark(position);
+            }
+        }
+
         private void HandleHits()
         {
             foreach (Vector2 wallUv in WallHitInput.CollectHits(session, "Autumn"))
@@ -225,6 +249,13 @@ namespace BallGame
 
         private void OnWallHit(Vector2 wallUv)
         {
+            if (SceneHold.IsHolding)
+            {
+                // 固定モード：エフェクトも葉も紅葉もさせず、ボールのいる場所だけ見せる
+                markers.Mark(wallUv);
+                return;
+            }
+
             if (flow.Phase != ChristmasPhase.Playing)
             {
                 return;

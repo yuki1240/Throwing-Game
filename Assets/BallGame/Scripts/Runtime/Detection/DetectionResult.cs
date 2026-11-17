@@ -125,6 +125,9 @@ namespace BallGame
         /// <summary>BallMask に1画素でもあるか。</summary>
         public bool HasBall;
 
+        /// <summary>ボールとして採用できる塊の重心（深度画像上の 0〜1、上端が 0）。固定モードで場所を出すのに使います。</summary>
+        public readonly List<Vector2> BallImageUvs = new List<Vector2>();
+
         /// <summary>
         /// 中身を空にします。
         /// </summary>
@@ -138,6 +141,7 @@ namespace BallGame
             ChangedArea = 0f;
             HasLargestBlob = false;
             HasBall = false;
+            BallImageUvs.Clear();
             LargestBlobRejectReason = string.Empty;
         }
 
