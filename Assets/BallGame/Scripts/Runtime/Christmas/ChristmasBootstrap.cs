@@ -539,7 +539,7 @@ namespace BallGame
             bool playing = phase == ChristmasPhase.Playing;
             instructionText.gameObject.SetActive(playing);
             counterText.gameObject.SetActive(playing);
-            counterText.text = "あと\n" + flow.Remaining + "こ！";
+            counterText.text = SceneHold.IsHolding ? "デバック\nモード" : "あと\n" + flow.Remaining + "こ！";
             celebrationText.gameObject.SetActive(phase == ChristmasPhase.Celebrating);
             celebrationText.rectTransform.localScale = Vector3.one * (1f + 0.06f * Mathf.Sin(Time.time * 5f));
             // 10球そろったあとのカウントダウン、または10分たつ前の最後の10秒のカウントダウン
