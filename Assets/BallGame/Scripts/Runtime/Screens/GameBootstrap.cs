@@ -252,9 +252,9 @@ namespace BallGame
             rect.anchorMax = Vector2.zero;
             rect.pivot = Vector2.zero;
             rect.anchoredPosition = new Vector2(20f, 20f);
-            rect.sizeDelta = new Vector2(1420f, 190f);
+            rect.sizeDelta = new Vector2(1420f, 270f);
             hitText = UiFactory.CreateText(panel.transform, string.Empty, 26, TextAnchor.UpperLeft);
-            UiFactory.PlaceTopLeft(hitText.rectTransform, 16f, 10f, 1070f, 170f);
+            UiFactory.PlaceTopLeft(hitText.rectTransform, 16f, 10f, 1070f, 250f);
             holdButton = HoldButton.Create(panel.transform, 1110f, 20f, ToggleHold);
         }
 

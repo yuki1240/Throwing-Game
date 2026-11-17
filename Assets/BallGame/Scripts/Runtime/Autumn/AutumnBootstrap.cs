@@ -179,9 +179,9 @@ namespace BallGame
             rect.anchorMax = Vector2.zero;
             rect.pivot = Vector2.zero;
             rect.anchoredPosition = new Vector2(20f, 20f);
-            rect.sizeDelta = new Vector2(1420f, 130f);
+            rect.sizeDelta = new Vector2(1420f, 250f);
             operatorText = UiFactory.CreateText(panel.transform, string.Empty, 24, TextAnchor.UpperLeft);
-            UiFactory.PlaceTopLeft(operatorText.rectTransform, 16f, 10f, 820f, 110f);
+            UiFactory.PlaceTopLeft(operatorText.rectTransform, 16f, 10f, 820f, 230f);
             Button back = UiFactory.CreateButton(panel.transform, "校正へ戻る", 26, OnBackToCalibration);
             UiFactory.PlaceTopLeft((RectTransform)back.transform, 860f, 30f, 220f, 70f);
             holdButton = HoldButton.Create(panel.transform, 1110f, 30f, ToggleHold);
