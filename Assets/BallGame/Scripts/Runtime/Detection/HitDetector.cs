@@ -20,6 +20,7 @@ namespace BallGame
         private readonly DetectionSettings settings;
         private readonly DetectionResult result = new DetectionResult();
         private readonly List<Track> tracks = new List<Track>();
+        private readonly List<Track> bursts = new List<Track>();
         private readonly Queue<int> floodQueue = new Queue<int>();
 
         private int width;
@@ -125,6 +126,7 @@ namespace BallGame
         public void ResetTracking()
         {
             tracks.Clear();
+            bursts.Clear();
             frameIndex = 0;
             lastPersonTime = float.NegativeInfinity;
         }
@@ -558,8 +560,52 @@ namespace BallGame
                     continue;
                 }
 
-                TryEmit(track, blob);
+                if (AbsorbIntoBurst(track, blob))
+                {
+                    continue;
+                }
+
+                if (TryEmit(track, blob))
+                {
+                    StartBurst(blob);
+                }
             }
+        }
+
+        /// <summary>
+        /// 当たりを出したあとに続けて見える同じボール（壁を伝って落ちる軌跡など）なら、新しい当たりにしません。
+        /// </summary>
+        /// <param name="track">この塊の追跡</param>
+        /// <param name="blob">塊</param>
+        /// <returns>同じボールの続きとして吸収したら true</returns>
+        private bool AbsorbIntoBurst(Track track, DepthBlob blob)
+        {
+            Vector2 position = new Vector2(blob.CentroidX, blob.CentroidY);
+            float radiusPixels = settings.BurstRadius / Mathf.Max(0.05f, blob.LinearScale);
+            foreach (Track burst in bursts)
+            {
+                if (frameIndex - burst.LastFrame > settings.BurstGapFrames)
+                {
+                    continue;
+                }
+
+                if (Vector2.Distance(burst.Position, position) > radiusPixels)
+                {
+                    continue;
+                }
+
+                burst.Position = position;
+                burst.LastFrame = frameIndex;
+                track.Emitted = true;
+                return true;
+            }
+
+            return false;
+        }
+
+        private void StartBurst(DepthBlob blob)
+        {
+            bursts.Add(new Track { Position = new Vector2(blob.CentroidX, blob.CentroidY), LastFrame = frameIndex });
         }
 
         /// <summary>
@@ -637,12 +683,12 @@ namespace BallGame
             return best;
         }
 
-        private void TryEmit(Track track, DepthBlob blob)
+        private bool TryEmit(Track track, DepthBlob blob)
         {
             if (track.Emitted)
             {
                 // 同じ場所に留まった物体は出し続けない
-                return;
+                return false;
             }
 
             // 速いボールは壁の近くに1〜2フレームしかいないため、はっきり壁から離れた塊は小さくても1フレームで採用する
@@ -651,11 +697,12 @@ namespace BallGame
                 || track.ConsecutiveFrames >= settings.ConfirmFrames;
             if (!accepted)
             {
-                return;
+                return false;
             }
 
             track.Emitted = true;
             result.Hits.Add(CreateHit(blob));
+            return true;
         }
 
         private DetectedHit CreateHit(DepthBlob blob)
@@ -668,6 +715,7 @@ namespace BallGame
         private void ForgetOldTracks()
         {
             tracks.RemoveAll(track => frameIndex - track.LastFrame > settings.TrackForgetFrames);
+            bursts.RemoveAll(burst => frameIndex - burst.LastFrame > settings.BurstGapFrames);
         }
     }
 }

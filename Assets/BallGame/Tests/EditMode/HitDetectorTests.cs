@@ -258,6 +258,39 @@ namespace BallGame.Tests
         }
 
         [Test]
+        public void 壁を伝って落ちる軌跡は1球として1回だけ出す()
+        {
+            int total = 0;
+            for (int i = 0; i < 18; i++)
+            {
+                ushort[] frame = scene.EmptyFrame();
+                scene.DrawDisc(frame, 100f + i * 2f, 60f + i * 7f, 4.5f, 70f);
+                total += detector.Process(frame, i * 0.033f).Hits.Count;
+            }
+
+            Assert.That(total, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void 軌跡が途切れたあとの次の1球はまた出す()
+        {
+            ushort[] ball = scene.EmptyFrame();
+            scene.DrawDisc(ball, 100f, 100f, 4.5f, 70f);
+            Assert.That(detector.Process(ball, 0f).Hits.Count, Is.EqualTo(1));
+
+            int total = 0;
+            for (int i = 1; i <= 10; i++)
+            {
+                total += detector.Process(scene.EmptyFrame(), i * 0.033f).Hits.Count;
+            }
+
+            ushort[] next = scene.EmptyFrame();
+            scene.DrawDisc(next, 110f, 105f, 4.5f, 70f);
+            total += detector.Process(next, 0.4f).Hits.Count;
+            Assert.That(total, Is.EqualTo(1));
+        }
+
+        [Test]
         public void 模擬深度のクリックも揺れの中で検知できる()
         {
             SimulatedDepthSource simulator = new SimulatedDepthSource(MountOrientation.Side, 42);

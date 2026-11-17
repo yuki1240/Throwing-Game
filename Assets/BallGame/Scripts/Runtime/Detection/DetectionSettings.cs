@@ -60,6 +60,12 @@ namespace BallGame
         /// <summary>同じ物体とみなす重心の距離（2m の所での画素数に直した値）。</summary>
         public float TrackMatchRadius = 8f;
 
+        /// <summary>当たりを出したあと、この距離（2m の所での画素数に直した値）以内に続けて見えるボールは同じ1球とみなす。</summary>
+        public float BurstRadius = 60f;
+
+        /// <summary>同じ1球とみなす間、ボールが見えなくなってよいフレーム数（これを過ぎると次の当たりを出せる）。</summary>
+        public int BurstGapFrames = 6;
+
         /// <summary>見えなくなった物体を覚えておくフレーム数（同じ場所に留まった物体を出し続けないため）。</summary>
         public int TrackForgetFrames = 10;
 
