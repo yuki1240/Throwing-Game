@@ -59,3 +59,6 @@ Desktop.ini
 # アセットストアの素材（容量が大きく、再配布もできないため各自で取り込む）
 /[Aa]ssets/Polyart/
 /[Aa]ssets/Polyart.meta
+
+# 診断の保存先（校正画面の F9）
+/_diagnostics/

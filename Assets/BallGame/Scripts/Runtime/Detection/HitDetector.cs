@@ -209,6 +209,26 @@ namespace BallGame
         }
 
         /// <summary>
+        /// 基準の深度（mm、0 は取れていない）を返します。診断の表に使います。
+        /// </summary>
+        /// <param name="index">画素の番号</param>
+        /// <returns>深度（mm）</returns>
+        public ushort GetBaselineDepth(int index)
+        {
+            return baseline[index];
+        }
+
+        /// <summary>
+        /// 画素の壁の向きと視線の内積の大きさ（0〜1）を返します。小さいほど壁をかすめて見ている所です。
+        /// </summary>
+        /// <param name="index">画素の番号</param>
+        /// <returns>内積の大きさ</returns>
+        public float GetNormalDot(int index)
+        {
+            return Mathf.Abs(normalDotRay[index]);
+        }
+
+        /// <summary>
         /// ボールを検知できない画素（四隅の内側で、基準の深度が取れていない、または基準を録る間に揺れた画素）。
         /// 校正画面のプレビューで紫に出して、深度が取れていない所を確かめるのに使います。
         /// </summary>

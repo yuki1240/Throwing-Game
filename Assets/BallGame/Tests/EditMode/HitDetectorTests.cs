@@ -151,6 +151,20 @@ namespace BallGame.Tests
         }
 
         [Test]
+        public void 診断の表は帯の数だけ行が出る()
+        {
+            string table = DetectorDiagnostics.BuildBandTable(detector, scene.EmptyFrame());
+            string[] lines = table.Split('\n');
+            int rows = 0;
+            foreach (string line in lines)
+            {
+                rows += line.Length > 0 && char.IsDigit(line[0]) ? 1 : 0;
+            }
+
+            Assert.That(rows, Is.EqualTo(DetectorDiagnostics.BandCount));
+        }
+
+        [Test]
         public void 何も無ければ赤い表示はない()
         {
             DetectionResult result = detector.Process(scene.EmptyFrame(), 0f);

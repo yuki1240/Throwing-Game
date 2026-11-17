@@ -1,4 +1,8 @@
+using System.Collections.Generic;
+using System.IO;
+using System.Text;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
@@ -38,6 +42,9 @@ namespace BallGame
 
         private CalibrationSession session;
         private readonly DepthPreviewRenderer previewRenderer = new DepthPreviewRenderer();
+        private readonly List<string> blobLog = new List<string>();
+        private string diagnosticMessage = string.Empty;
+        private Vector2 lastLoggedBlob = new Vector2(-1f, -1f);
         private BaselineRecorder recorder;
         private RawImage preview;
         private RectTransform[] cornerMarkers;
@@ -73,9 +80,81 @@ namespace BallGame
             {
                 DrawPreview();
                 FeedRecorder();
+                RecordBlobLog();
             }
 
+            HandleDiagnosticsKey();
             RefreshAll();
+        }
+
+        private void HandleDiagnosticsKey()
+        {
+            Keyboard keyboard = Keyboard.current;
+            if (keyboard != null && keyboard.f9Key.wasPressedThisFrame)
+            {
+                SaveDiagnostics();
+            }
+        }
+
+        // 直近に見えた塊（位置・大きさ・採用できたか）を覚えておき、診断の保存に入れる
+        private void RecordBlobLog()
+        {
+            DetectionResult result = session.LatestResult;
+            if (result == null || !result.HasLargestBlob || !session.IsSavedCalibrationUsable)
+            {
+                return;
+            }
+
+            DepthBlob blob = result.LargestBlob;
+            Vector2 position = new Vector2(blob.CentroidX, blob.CentroidY);
+            if ((position - lastLoggedBlob).sqrMagnitude < 1f)
+            {
+                return;
+            }
+
+            lastLoggedBlob = position;
+            string verdict = result.PersonDetected ? "人サイズのフレーム" : result.LargestBlobRejectReason.Length == 0 ? "採用できる" : "不採用：" + result.LargestBlobRejectReason;
+            blobLog.Add(string.Format("t={0:F1}s 画素=({1:F0},{2:F0}) 横={3:P0} 面積(2m換算)={4:F0} 強さ={5:F2} 詰まり={6:F2} → {7}", Time.unscaledTime, blob.CentroidX, blob.CentroidY, (blob.CentroidX + 0.5f) / Mathf.Max(1, session.FrameWidth), blob.NormalizedArea, blob.PeakStrength, blob.FillRatio, verdict));
+            if (blobLog.Count > 60)
+            {
+                blobLog.RemoveAt(0);
+            }
+        }
+
+        // 「ボールが反応しない場所」の原因を調べるため、帯ごとの表と直近の塊の記録をファイルに保存する
+        private void SaveDiagnostics()
+        {
+            try
+            {
+                string folder = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "_diagnostics"));
+                Directory.CreateDirectory(folder);
+                string stamp = System.DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                StringBuilder builder = new StringBuilder();
+                builder.AppendLine("BallGame 診断 " + stamp);
+                builder.AppendLine("画像サイズ " + session.FrameWidth + "x" + session.FrameHeight + "　設置 " + MountGeometry.GetDisplayName(session.Data.Mount));
+                builder.AppendLine("紫（検知できない画素）の割合 " + Mathf.RoundToInt(session.Detector.BlindRatio * 100f) + "%");
+                builder.AppendLine();
+                builder.AppendLine(DetectorDiagnostics.BuildBandTable(session.Detector, session.LatestDepth));
+                builder.AppendLine("直近の塊（古い順）");
+                foreach (string line in blobLog)
+                {
+                    builder.AppendLine(line);
+                }
+
+                File.WriteAllText(Path.Combine(folder, "diag_" + stamp + ".txt"), builder.ToString(), new UTF8Encoding(true));
+                if (previewRenderer.Texture != null)
+                {
+                    File.WriteAllBytes(Path.Combine(folder, "preview_" + stamp + ".png"), previewRenderer.Texture.EncodeToPNG());
+                }
+
+                diagnosticMessage = "診断を保存しました：" + folder;
+                Debug.Log("[診断] " + diagnosticMessage);
+            }
+            catch (System.Exception exception)
+            {
+                diagnosticMessage = "診断を保存できませんでした：" + exception.Message;
+                Debug.LogError("[診断] " + exception);
+            }
         }
 
         private void OnDestroy()
@@ -556,8 +635,9 @@ namespace BallGame
             }
 
             string blind = session.Detector != null && session.Detector.IsConfigured ? "\n検知できない所（紫）：" + Mathf.RoundToInt(session.Detector.BlindRatio * 100f) + "%（基準の深度が取れていない／基準を録る間に揺れた画素）" : string.Empty;
+            string diagnostic = "\nＦ９キー：診断を保存" + (diagnosticMessage.Length > 0 ? "（" + diagnosticMessage + "）" : string.Empty);
             string person = result.PersonDetected ? "（人を検知中）" : result.InCooldown ? "（人が去ったあとの待ち時間）" : string.Empty;
-            return "変化画素：" + result.ChangedPixelCount + "（2m換算 " + result.ChangedArea.ToString("F0") + "）" + person + "\n" + result.DescribeLargestBlob() + blind;
+            return "変化画素：" + result.ChangedPixelCount + "（2m換算 " + result.ChangedArea.ToString("F0") + "）" + person + "\n" + result.DescribeLargestBlob() + blind + diagnostic;
         }
     }
 }
