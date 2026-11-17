@@ -44,6 +44,7 @@ namespace BallGame
         private Text countdownNumberText;
         private Text operatorText;
         private GameObject overlay;
+        private Button holdButton;
         private float nextRefreshAt;
         private float nextBurstAt;
         private string nextSceneName;
@@ -174,11 +175,12 @@ namespace BallGame
             rect.anchorMax = Vector2.zero;
             rect.pivot = Vector2.zero;
             rect.anchoredPosition = new Vector2(20f, 20f);
-            rect.sizeDelta = new Vector2(1100f, 130f);
+            rect.sizeDelta = new Vector2(1420f, 130f);
             operatorText = UiFactory.CreateText(panel.transform, string.Empty, 24, TextAnchor.UpperLeft);
             UiFactory.PlaceTopLeft(operatorText.rectTransform, 16f, 10f, 820f, 110f);
             Button back = UiFactory.CreateButton(panel.transform, "校正へ戻る", 26, OnBackToCalibration);
             UiFactory.PlaceTopLeft((RectTransform)back.transform, 860f, 30f, 220f, 70f);
+            holdButton = HoldButton.Create(panel.transform, 1110f, 30f, ToggleHold);
         }
 
         private void HandleKeyboard()
@@ -187,8 +189,7 @@ namespace BallGame
             if (keyboard != null && keyboard.f5Key.wasPressedThisFrame)
             {
                 // 固定モード：いまの場面をずっと続ける（場面の切り替えとカウントダウンをしない）
-                SceneHold.Toggle();
-                ApplyHoldMode();
+                ToggleHold();
             }
             if (keyboard != null && keyboard.spaceKey.wasPressedThisFrame)
             {
@@ -200,6 +201,13 @@ namespace BallGame
                 // テスト用：Kinect がなくても、山のどこかにボールが当たったことにする
                 OnWallHit(new Vector2(0.05f + 0.9f * (float)random.NextDouble(), 0.1f + 0.5f * (float)random.NextDouble()));
             }
+        }
+
+        private void ToggleHold()
+        {
+            SceneHold.Toggle();
+            ApplyHoldMode();
+            HoldButton.Refresh(holdButton);
         }
 
         private void ApplyHoldMode()
@@ -318,6 +326,7 @@ namespace BallGame
             countdownNumberText.text = countdownNumber.ToString();
             countdownNumberText.rectTransform.localScale = Vector3.one * (phase == ChristmasPhase.Countdown ? GetCountdownPop() : GetTimerCountdownPop(countdownNumber));
             operatorText.text = BuildOperatorText();
+            HoldButton.Refresh(holdButton);
         }
 
         private float GetTimerCountdownPop(int number)

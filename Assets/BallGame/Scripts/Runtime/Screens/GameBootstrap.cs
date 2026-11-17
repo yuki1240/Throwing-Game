@@ -44,6 +44,7 @@ namespace BallGame
         private Text intervalText;
         private Text distanceText;
         private Text hitText;
+        private Button holdButton;
         private Text messageText;
         private Button randomButton;
         private Button fixedButton;
@@ -248,9 +249,10 @@ namespace BallGame
             rect.anchorMax = Vector2.zero;
             rect.pivot = Vector2.zero;
             rect.anchoredPosition = new Vector2(20f, 20f);
-            rect.sizeDelta = new Vector2(1100f, 190f);
+            rect.sizeDelta = new Vector2(1420f, 190f);
             hitText = UiFactory.CreateText(panel.transform, string.Empty, 26, TextAnchor.UpperLeft);
             UiFactory.PlaceTopLeft(hitText.rectTransform, 16f, 10f, 1070f, 170f);
+            holdButton = HoldButton.Create(panel.transform, 1110f, 20f, ToggleHold);
         }
 
         private void BuildMessage(Transform parent)
@@ -271,13 +273,19 @@ namespace BallGame
             if (keyboard != null && keyboard.f5Key.wasPressedThisFrame)
             {
                 // 固定モード：いまの場面をずっと続ける（場面の切り替えとカウントダウンをしない）
-                SceneHold.Toggle();
-                ApplyHoldMode();
+                ToggleHold();
             }
             if (keyboard != null && keyboard.spaceKey.wasPressedThisFrame)
             {
                 overlay.SetActive(!overlay.activeSelf);
             }
+        }
+
+        private void ToggleHold()
+        {
+            SceneHold.Toggle();
+            ApplyHoldMode();
+            HoldButton.Refresh(holdButton);
         }
 
         private void ApplyHoldMode()
@@ -425,6 +433,7 @@ namespace BallGame
 
         private void RefreshTexts()
         {
+            HoldButton.Refresh(holdButton);
             backgroundNameText.text = backgrounds.Count == 0 ? "背景画像なし" : (rotation.CurrentIndex + 1) + "/" + backgrounds.Count + " " + GetCurrentBackgroundName();
             UiFactory.SetButtonLabel(randomButton, "ランダム：" + (rotation.IsRandom ? "オン" : "オフ"));
             UiFactory.SetButtonLabel(fixedButton, "固定：" + (rotation.IsFixed ? "オン" : "オフ"));
