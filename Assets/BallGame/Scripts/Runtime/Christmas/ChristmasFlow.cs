@@ -38,7 +38,7 @@ namespace BallGame
         /// <summary>当たりを数える間隔の下限（秒）。1秒に1個まで。</summary>
         public const float DefaultMinHitIntervalSeconds = 1f;
 
-        private readonly int goal;
+        private int goal;
         private readonly float celebrateSeconds;
         private readonly int countdownFrom;
         private readonly float minHitIntervalSeconds;
@@ -113,6 +113,19 @@ namespace BallGame
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// 完成までに当てる回数を変えます（固定モードの入り切りで使う）。
+        /// すでに当てた回数より少なくはならず、飾り付け中でなければ何もしません。
+        /// </summary>
+        /// <param name="newGoal">新しい回数</param>
+        public void SetGoal(int newGoal)
+        {
+            if (phase == ChristmasPhase.Playing)
+            {
+                goal = Mathf.Max(newGoal, hitCount + 1);
+            }
         }
 
         /// <summary>

@@ -45,6 +45,7 @@ namespace BallGame
         private Vector3 towardCamera;
         private Vector3[] slotPositions;
         private float ornamentSize;
+        private int ornamentCount;
         private float foliageBottom;
         private float foliageTop;
         private float coneBaseRadius;
@@ -347,9 +348,24 @@ namespace BallGame
         public void AddOrnament(int slotIndex, bool redBulb, Color color, Vector2 viewportPoint)
         {
             Vector3 target = slotPositions[slotIndex % slotPositions.Length];
+            target += GetRepeatOffset();
             Transform ornament = redBulb ? CreateBulb(slotIndex) : CreateBall(slotIndex, color);
             ornament.rotation = Quaternion.LookRotation(towardCamera);
             ornament.gameObject.AddComponent<OrnamentFlight3D>().Fly(GetStartPoint(viewportPoint), target, Vector3.one * ornamentSize, ornamentSize * 2f);
+        }
+
+        // 固定モードで飾りが場所の数より多くなったときは、重ならないよう少しずらして付ける
+        private Vector3 GetRepeatOffset()
+        {
+            ornamentCount++;
+            if (ornamentCount <= slotPositions.Length)
+            {
+                return Vector3.zero;
+            }
+
+            float range = ornamentSize * 1.6f;
+            Transform view = viewCamera.transform;
+            return view.right * (Random.value * 2f - 1f) * range + view.up * (Random.value * 2f - 1f) * range;
         }
 
         /// <summary>

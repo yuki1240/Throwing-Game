@@ -66,6 +66,7 @@ namespace BallGame
         private void Start()
         {
             nextSceneName = SceneRotation.PickNext(SceneRotation.MeadowScene);
+            ApplyHoldMode();
             session = CalibrationSession.EnsureExists();
             EventSystemKeeper.Ensure();
             EnsureSettings();
@@ -94,7 +95,7 @@ namespace BallGame
         private void TickTimer()
         {
             // 遊んでいる間だけ時間を数える（10球そろったあとは別のカウントダウンが進む）
-            if (flow.Phase == ChristmasPhase.Playing)
+            if (flow.Phase == ChristmasPhase.Playing && !SceneHold.IsHolding)
             {
                 timer.Tick(Time.unscaledDeltaTime);
             }
@@ -102,6 +103,11 @@ namespace BallGame
 
         private void GoToNextSceneWhenFinished()
         {
+            if (SceneHold.IsHolding)
+            {
+                return;
+            }
+
             bool timeUp = flow.Phase == ChristmasPhase.Playing && timer.IsExpired;
             if ((flow.Phase != ChristmasPhase.Finished && !timeUp) || sceneRequested)
             {
@@ -262,10 +268,21 @@ namespace BallGame
         private void HandleKeyboard()
         {
             Keyboard keyboard = Keyboard.current;
+            if (keyboard != null && keyboard.f5Key.wasPressedThisFrame)
+            {
+                // 固定モード：いまの場面をずっと続ける（場面の切り替えとカウントダウンをしない）
+                SceneHold.Toggle();
+                ApplyHoldMode();
+            }
             if (keyboard != null && keyboard.spaceKey.wasPressedThisFrame)
             {
                 overlay.SetActive(!overlay.activeSelf);
             }
+        }
+
+        private void ApplyHoldMode()
+        {
+            flow.SetGoal(SceneHold.GetGoal(SceneHold.EndlessGoal));
         }
 
         private void ProcessHits()
@@ -427,7 +444,7 @@ namespace BallGame
             celebrationText.rectTransform.localScale = Vector3.one * (1f + 0.06f * Mathf.Sin(Time.time * 5f));
 
             // 10球そろったあとのカウントダウン、または10分たつ前の最後の10秒のカウントダウン
-            int number = phase == ChristmasPhase.Countdown ? flow.GetCountdownNumber() : timer.GetCountdownNumber();
+            int number = SceneHold.IsHolding ? 0 : phase == ChristmasPhase.Countdown ? flow.GetCountdownNumber() : timer.GetCountdownNumber();
             bool countdown = number > 0;
             countdownTitleText.gameObject.SetActive(countdown);
             countdownNumberText.gameObject.SetActive(countdown);
@@ -451,7 +468,7 @@ namespace BallGame
 
             string clickHint = session.IsSimulated ? "\n模擬深度：画面をクリックするとボールが当たります" : string.Empty;
             string blob = result != null ? "\n" + result.DescribeLargestBlob() : string.Empty;
-            string sceneChange = "　" + SceneRotation.GetOperatorName(nextSceneName) + "へ：あと" + flow.Remaining + "球 / " + timer.FormatRemaining();
+            string sceneChange = "　" + SceneRotation.GetOperatorName(nextSceneName) + "へ：あと" + flow.Remaining + "球 / " + timer.FormatRemaining() + SceneHold.GetOperatorHint();
             return "HIT " + hitCount + sceneChange + state + "\n最後：" + lastHitDescription + blob + clickHint;
         }
 

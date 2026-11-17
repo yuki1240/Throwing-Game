@@ -181,5 +181,50 @@ namespace BallGame.Tests
             Assert.That(flow.Phase, Is.EqualTo(ChristmasPhase.Celebrating));
             Assert.That(flow.Complete(), Is.False, "二度目は何もしない");
         }
+
+        [Test]
+        public void 回数を増やすと10回では完成しない()
+        {
+            ChristmasFlow flow = new ChristmasFlow();
+            flow.SetGoal(SceneHold.TreeGoal);
+            for (int i = 0; i < 10; i++)
+            {
+                flow.RegisterHit(i * 2f);
+            }
+
+            Assert.That(flow.Phase, Is.EqualTo(ChristmasPhase.Playing));
+            Assert.That(flow.Goal, Is.EqualTo(SceneHold.TreeGoal));
+            Assert.That(flow.IsNextFinal, Is.False);
+        }
+
+        [Test]
+        public void 回数を戻しても当てた数より少なくならない()
+        {
+            ChristmasFlow flow = new ChristmasFlow();
+            flow.SetGoal(SceneHold.TreeGoal);
+            for (int i = 0; i < 30; i++)
+            {
+                flow.RegisterHit(i * 2f);
+            }
+
+            flow.SetGoal(ChristmasFlow.DefaultGoal);
+
+            Assert.That(flow.Goal, Is.EqualTo(31));
+            Assert.That(flow.IsNextFinal, Is.True);
+        }
+
+        [Test]
+        public void 固定モードの入り切りと回数()
+        {
+            Assert.That(SceneHold.IsHolding, Is.False);
+            Assert.That(SceneHold.GetGoal(SceneHold.TreeGoal), Is.EqualTo(ChristmasFlow.DefaultGoal));
+            Assert.That(SceneHold.GetOperatorHint(), Is.EqualTo(string.Empty));
+
+            Assert.That(SceneHold.Toggle(), Is.True);
+            Assert.That(SceneHold.GetGoal(SceneHold.TreeGoal), Is.EqualTo(1000));
+            Assert.That(SceneHold.GetOperatorHint(), Is.Not.EqualTo(string.Empty));
+
+            Assert.That(SceneHold.Toggle(), Is.False);
+        }
     }
 }
