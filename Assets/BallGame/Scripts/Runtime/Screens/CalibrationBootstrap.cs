@@ -20,6 +20,7 @@ namespace BallGame
         private const float PreviewTop = 110f;
         private const float PreviewMaxWidth = 1100f;
         private const float PreviewMaxHeight = 930f;
+        private const float PreviewAspect = 1920f / 1080f;
         private const float PanelLeft = 1180f;
         private const float PanelWidth = 700f;
         private const float CornerGrabRadius = 40f;
@@ -425,14 +426,14 @@ namespace BallGame
 
         private Vector2 GetPreviewSize()
         {
-            int width = Mathf.Max(1, session.FrameWidth);
-            int height = Mathf.Max(1, session.FrameHeight);
+            // 深度画像（512×424 など）を、壁に映す画面と同じ 16:9（1920×1080 の比）に横へ引き伸ばして出す。
+            // 見た目だけを伸ばしていて、深度のデータや四隅の位置（画像上の割合）は変わらない
             float previewWidth = PreviewMaxWidth;
-            float previewHeight = previewWidth * height / width;
+            float previewHeight = previewWidth / PreviewAspect;
             if (previewHeight > PreviewMaxHeight)
             {
                 previewHeight = PreviewMaxHeight;
-                previewWidth = previewHeight * width / height;
+                previewWidth = previewHeight * PreviewAspect;
             }
 
             return new Vector2(previewWidth, previewHeight);
