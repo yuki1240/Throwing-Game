@@ -8,15 +8,12 @@ namespace BallGame
 {
     /// <summary>
     /// Autumn シーンの起動用オブジェクト。緑の山の絵に、ボールが当たった場所から赤・だいだい・黄色の紅葉が広がります。
-    /// 山ぜんぶが紅葉したら「もみじの やまが できた！」と出して、10秒のカウントダウンのあと次の場面（クリスマス）へ移ります。
+    /// 山ぜんぶが紅葉したら「もみじの やまが できた！」と出して、10秒のカウントダウンのあと次の場面（ランダム）へ移ります。
     /// 完成しなくても、10分たつと次の場面へ移ります（最後の1分に当たったときは、さらに1分待ちます）。
     /// 遊ぶのは幼稚園の子どもなので、文字は大きく、ひらがなを多くしています。
     /// </summary>
     public sealed class AutumnBootstrap : MonoBehaviour
     {
-        /// <summary>次の場面（クリスマス）のシーン名。</summary>
-        public const string NextSceneName = "Christmas";
-
         /// <summary>校正のシーン名。</summary>
         public const string CalibrationSceneName = "Calibration";
 
@@ -49,10 +46,12 @@ namespace BallGame
         private GameObject overlay;
         private float nextRefreshAt;
         private float nextBurstAt;
+        private string nextSceneName;
         private bool sceneRequested;
 
         private void Start()
         {
+            nextSceneName = SceneRotation.PickNext(SceneRotation.AutumnScene);
             session = CalibrationSession.EnsureExists();
             EventSystemKeeper.Ensure();
             BuildScenery();
@@ -160,7 +159,7 @@ namespace BallGame
             instructionText = UiFactory.PlaceKidsText(parent, "ボールを かべに あてて やまを あかく そめよう！", 58, Color.white, new Vector2(960f, 1015f), new Vector2(1800f, 90f));
             percentText = UiFactory.PlaceKidsText(parent, string.Empty, 100, GoldText, new Vector2(330f, 900f), new Vector2(560f, 160f));
             celebrationText = UiFactory.PlaceKidsText(parent, "もみじの やまが できた！", 120, GoldText, new Vector2(960f, 520f), new Vector2(1900f, 200f));
-            countdownTitleText = UiFactory.PlaceKidsText(parent, "つぎは クリスマス！", 80, Color.white, new Vector2(960f, 760f), new Vector2(1600f, 140f));
+            countdownTitleText = UiFactory.PlaceKidsText(parent, SceneRotation.GetKidsTitle(nextSceneName), 80, Color.white, new Vector2(960f, 760f), new Vector2(1600f, 140f));
             countdownNumberText = UiFactory.PlaceKidsText(parent, string.Empty, 340, GoldText, new Vector2(960f, 440f), new Vector2(600f, 420f));
         }
 
@@ -349,7 +348,7 @@ namespace BallGame
             }
 
             sceneRequested = true;
-            SceneManager.LoadScene(NextSceneName);
+            SceneManager.LoadScene(nextSceneName);
         }
     }
 }

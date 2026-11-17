@@ -10,7 +10,7 @@ namespace BallGame
     /// <summary>
     /// Christmas シーンの起動用オブジェクト。ボールが壁に当たるたびにクリスマスツリーへ飾り
     /// （いろいろな色のボールと赤い電球）を1つずつ付け、10回目にてっぺんの星が付いて完成します。
-    /// 完成したら「クリスマスツリーの完成～！」ときらきらを出し、10秒のカウントダウンのあと次の場面（草原）へ移ります。
+    /// 完成したら「クリスマスツリーの完成～！」ときらきらを出し、10秒のカウントダウンのあと次の場面（ランダム）へ移ります。
     /// 当たりは1秒に1個まで数えます。
     /// 10球そろわなくても、10分たつと草原へ移ります（最後の1分に当たったときは、さらに1分待ちます）。
     /// 遊ぶのは幼稚園の子どもなので、文字は大きく、ひらがなを多くしています。
@@ -19,9 +19,6 @@ namespace BallGame
     /// </summary>
     public sealed class ChristmasBootstrap : MonoBehaviour
     {
-        /// <summary>次の場面（草原）のシーン名。</summary>
-        public const string NextSceneName = "Game";
-
         /// <summary>校正のシーン名。</summary>
         public const string CalibrationSceneName = "Calibration";
 
@@ -65,6 +62,7 @@ namespace BallGame
         private Text operatorText;
         private GameObject overlay;
         private float nextBurstAt;
+        private string nextSceneName;
         private bool sceneRequested;
         private RectTransform backdrop;
         private ChristmasTree3D tree3D;
@@ -72,6 +70,7 @@ namespace BallGame
 
         private void Start()
         {
+            nextSceneName = SceneRotation.PickNext(SceneRotation.ChristmasScene);
             session = CalibrationSession.EnsureExists();
             EventSystemKeeper.Ensure();
             slots = ChristmasTreeLayout.GetOrnamentSlots();
@@ -272,7 +271,7 @@ namespace BallGame
             instructionText = UiFactory.PlaceKidsText(parent, "ボールを かべに あてて ツリーを かざろう！", 58, Color.white, new Vector2(960f, 1015f), new Vector2(1800f, 90f));
             counterText = UiFactory.PlaceKidsText(parent, string.Empty, 110, GoldText, new Vector2(330f, 640f), new Vector2(560f, 300f));
             celebrationText = UiFactory.PlaceKidsText(parent, "クリスマスツリーの完成～！", 120, GoldText, new Vector2(960f, 520f), new Vector2(1900f, 200f));
-            countdownTitleText = UiFactory.PlaceKidsText(parent, "つぎは おはなばたけ！", 80, Color.white, new Vector2(960f, 760f), new Vector2(1600f, 140f));
+            countdownTitleText = UiFactory.PlaceKidsText(parent, SceneRotation.GetKidsTitle(nextSceneName), 80, Color.white, new Vector2(960f, 760f), new Vector2(1600f, 140f));
             countdownNumberText = UiFactory.PlaceKidsText(parent, string.Empty, 340, GoldText, new Vector2(960f, 440f), new Vector2(600f, 420f));
         }
 
@@ -544,7 +543,7 @@ namespace BallGame
             }
 
             sceneRequested = true;
-            SceneManager.LoadScene(NextSceneName);
+            SceneManager.LoadScene(nextSceneName);
         }
     }
 }
