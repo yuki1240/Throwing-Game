@@ -104,7 +104,13 @@ namespace BallGame.Tests
             ushort[] frame = scene.EmptyFrame();
             scene.DrawDisc(frame, 160f, 120f, 4.5f, -1f);
 
-            Assert.That(detector.Process(frame, 0f).Hits.Count, Is.EqualTo(1));
+            int total = 0;
+            for (int i = 0; i < 12; i++)
+            {
+                total += detector.Process(frame, i * 0.033f).Hits.Count;
+            }
+
+            Assert.That(total, Is.EqualTo(1));
         }
 
         [Test]
@@ -269,6 +275,32 @@ namespace BallGame.Tests
             }
 
             Assert.That(total, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void 遠くから飛んできたボールは壁に着いた点で出す()
+        {
+            float[] heights = { 140f, 140f, 110f, 70f, 110f, 140f, 140f, 140f };
+            float[] xs = { 60f, 100f, 140f, 180f, 170f, 160f, 150f, 140f };
+            int firstHitFrame = -1;
+            int total = 0;
+            float hitX = 0f;
+            for (int i = 0; i < heights.Length; i++)
+            {
+                ushort[] frame = scene.EmptyFrame();
+                scene.DrawDisc(frame, xs[i], 100f + i * 6f, 4.5f, heights[i]);
+                DetectionResult result = detector.Process(frame, i * 0.033f);
+                total += result.Hits.Count;
+                if (result.Hits.Count > 0)
+                {
+                    firstHitFrame = i;
+                    hitX = result.Hits[0].Pixel.x;
+                }
+            }
+
+            Assert.That(total, Is.EqualTo(1));
+            Assert.That(firstHitFrame, Is.GreaterThanOrEqualTo(3), "着く前には出さない");
+            Assert.That(hitX, Is.EqualTo(180f).Within(2f), "最初に見えた所ではなく、壁に着いた所");
         }
 
         [Test]
@@ -453,7 +485,7 @@ namespace BallGame.Tests
         public void はっきり壁から離れた小さい塊は1フレームで採用する()
         {
             ushort[] frame = scene.EmptyFrame();
-            scene.DrawDisc(frame, 200f, 80f, 2.3f, 120f);
+            scene.DrawDisc(frame, 200f, 80f, 2.3f, 95f);
 
             Assert.That(detector.Process(frame, 0f).Hits.Count, Is.EqualTo(1));
         }

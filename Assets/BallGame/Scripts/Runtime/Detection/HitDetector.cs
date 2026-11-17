@@ -17,10 +17,27 @@ namespace BallGame
             public bool Emitted;
         }
 
+        /// <summary>
+        /// 1球ぶんの見え方のまとまり。壁に着いた瞬間（壁にいちばん近づいた点）を選ぶために使います。
+        /// </summary>
+        private sealed class Burst
+        {
+            public Vector2 Position;
+            public int LastFrame;
+            public bool Emitted;
+            public int UndecidedFrames;
+            public bool Decided;
+            public bool Direct;
+            public bool Dipped;
+            public float BestStrength = float.MaxValue;
+            public int BestFrame;
+            public DetectedHit BestHit;
+        }
+
         private readonly DetectionSettings settings;
         private readonly DetectionResult result = new DetectionResult();
         private readonly List<Track> tracks = new List<Track>();
-        private readonly List<Track> bursts = new List<Track>();
+        private readonly List<Burst> bursts = new List<Burst>();
         private readonly Queue<int> floodQueue = new Queue<int>();
 
         private int width;
@@ -155,12 +172,14 @@ namespace BallGame
             MarkBallPixels();
             if (IsPersonFrame())
             {
+                bursts.Clear();
                 HandlePersonFrame(timeSeconds);
             }
             else if (timeSeconds - lastPersonTime < settings.PersonCooldownSeconds)
             {
                 // 人が去ったあとの待ち時間：見えた物体は覚えるだけで出さない
                 result.InCooldown = true;
+                bursts.Clear();
                 UpdateTracks(false);
             }
             else
@@ -168,6 +187,7 @@ namespace BallGame
                 UpdateTracks(true);
             }
 
+            FinishOldBursts();
             ForgetOldTracks();
             return result;
         }
@@ -560,52 +580,136 @@ namespace BallGame
                     continue;
                 }
 
-                if (AbsorbIntoBurst(track, blob))
-                {
-                    continue;
-                }
-
-                if (TryEmit(track, blob))
-                {
-                    StartBurst(blob);
-                }
+                HandleBlob(track, blob);
             }
         }
 
+        private void HandleBlob(Track track, DepthBlob blob)
+        {
+            bool isNew;
+            Burst burst = FindOrCreateBurst(blob, out isNew);
+            if (burst.Emitted)
+            {
+                // 当たりを出したあとに続けて見える同じボール（壁を伝って落ちる軌跡など）は出さない
+                track.Emitted = true;
+                return;
+            }
+
+            float peak = blob.PeakStrength;
+            bool valid = Mathf.Abs(peak - settings.ZeroDepthStrength) > 0.01f;
+            if (!burst.Decided && valid)
+            {
+                burst.Decided = true;
+                burst.Direct = peak < GetFlightStrength();
+            }
+            else if (!burst.Decided && ++burst.UndecidedFrames >= settings.ZeroOnlyFrames)
+            {
+                // 深度 0 のままずっと留まる物体は、壁の近くにあるものとして扱う
+                burst.Decided = true;
+                burst.Direct = true;
+            }
+
+            if (burst.Decided && burst.Direct)
+            {
+                // 最初から壁の近くに現れたもの（クリックなど）は、すぐ出す
+                if (TryEmit(track, blob))
+                {
+                    burst.Emitted = true;
+                }
+
+                return;
+            }
+
+            // 遠くから飛んできたボールは、壁にいちばん近づいた点（当たった瞬間）まで待つ
+            if (!valid || !burst.Decided)
+            {
+                return;
+            }
+
+            UpdateBestContact(burst, blob);
+            if (ShouldEmitContact(burst, peak))
+            {
+                EmitBurst(burst);
+            }
+        }
+
+        private void UpdateBestContact(Burst burst, DepthBlob blob)
+        {
+            if (blob.PeakStrength >= burst.BestStrength)
+            {
+                return;
+            }
+
+            burst.BestStrength = blob.PeakStrength;
+            burst.BestFrame = frameIndex;
+            burst.BestHit = CreateHit(blob);
+            burst.Dipped = blob.PeakStrength < GetFlightStrength();
+        }
+
+        private bool ShouldEmitContact(Burst burst, float currentPeak)
+        {
+            if (!burst.Dipped)
+            {
+                return false;
+            }
+
+            bool leaving = currentPeak >= burst.BestStrength + settings.ContactRise;
+            bool resting = frameIndex - burst.BestFrame >= settings.ContactStuckFrames;
+            return leaving || resting;
+        }
+
+        private void EmitBurst(Burst burst)
+        {
+            burst.Emitted = true;
+            result.Hits.Add(burst.BestHit);
+        }
+
         /// <summary>
-        /// 当たりを出したあとに続けて見える同じボール（壁を伝って落ちる軌跡など）なら、新しい当たりにしません。
+        /// 飛んでいるボールとみなす強さ（これ未満まで壁に近づいたら、壁に着いたとみなす）を返します。
         /// </summary>
-        /// <param name="track">この塊の追跡</param>
-        /// <param name="blob">塊</param>
-        /// <returns>同じボールの続きとして吸収したら true</returns>
-        private bool AbsorbIntoBurst(Track track, DepthBlob blob)
+        /// <returns>強さ</returns>
+        private float GetFlightStrength()
+        {
+            float cap = settings.MaxDistanceMm / Mathf.Max(1f, settings.NoiseFloorMm);
+            return cap * settings.FlightRatio;
+        }
+
+        private Burst FindOrCreateBurst(DepthBlob blob, out bool isNew)
         {
             Vector2 position = new Vector2(blob.CentroidX, blob.CentroidY);
             float radiusPixels = settings.BurstRadius / Mathf.Max(0.05f, blob.LinearScale);
-            foreach (Track burst in bursts)
+            foreach (Burst burst in bursts)
             {
-                if (frameIndex - burst.LastFrame > settings.BurstGapFrames)
-                {
-                    continue;
-                }
-
-                if (Vector2.Distance(burst.Position, position) > radiusPixels)
+                if (frameIndex - burst.LastFrame > settings.BurstGapFrames
+                    || Vector2.Distance(burst.Position, position) > radiusPixels)
                 {
                     continue;
                 }
 
                 burst.Position = position;
                 burst.LastFrame = frameIndex;
-                track.Emitted = true;
-                return true;
+                isNew = false;
+                return burst;
             }
 
-            return false;
+            Burst created = new Burst { Position = position, LastFrame = frameIndex };
+            bursts.Add(created);
+            isNew = true;
+            return created;
         }
 
-        private void StartBurst(DepthBlob blob)
+        private void FinishOldBursts()
         {
-            bursts.Add(new Track { Position = new Vector2(blob.CentroidX, blob.CentroidY), LastFrame = frameIndex });
+            foreach (Burst burst in bursts)
+            {
+                bool ended = frameIndex - burst.LastFrame > settings.BurstGapFrames;
+                if (ended && !burst.Emitted && burst.Decided && !burst.Direct && burst.Dipped)
+                {
+                    EmitBurst(burst);
+                }
+            }
+
+            bursts.RemoveAll(burst => frameIndex - burst.LastFrame > settings.BurstGapFrames);
         }
 
         /// <summary>
@@ -715,7 +819,6 @@ namespace BallGame
         private void ForgetOldTracks()
         {
             tracks.RemoveAll(track => frameIndex - track.LastFrame > settings.TrackForgetFrames);
-            bursts.RemoveAll(burst => frameIndex - burst.LastFrame > settings.BurstGapFrames);
         }
     }
 }

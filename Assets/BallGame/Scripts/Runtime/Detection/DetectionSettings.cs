@@ -66,6 +66,18 @@ namespace BallGame
         /// <summary>同じ1球とみなす間、ボールが見えなくなってよいフレーム数（これを過ぎると次の当たりを出せる）。</summary>
         public int BurstGapFrames = 6;
 
+        /// <summary>遠くから飛んできたボールとみなす強さの割合（上限の強さに対する割合）。これ未満まで壁に近づいたら、壁に着いたとみなす。</summary>
+        public float FlightRatio = 0.8f;
+
+        /// <summary>壁にいちばん近づいたあと、強さがこれだけ戻ったら「壁から離れた」とみなして当たりを出す。</summary>
+        public float ContactRise = 1f;
+
+        /// <summary>壁にいちばん近づいたまま、このフレーム数が過ぎたら当たりを出す（壁に留まるボール用）。</summary>
+        public int ContactStuckFrames = 4;
+
+        /// <summary>深度 0 の画素だけで見え続けた物体を、壁の近くにあるものとして扱うまでのフレーム数。</summary>
+        public int ZeroOnlyFrames = 10;
+
         /// <summary>見えなくなった物体を覚えておくフレーム数（同じ場所に留まった物体を出し続けないため）。</summary>
         public int TrackForgetFrames = 10;
 
